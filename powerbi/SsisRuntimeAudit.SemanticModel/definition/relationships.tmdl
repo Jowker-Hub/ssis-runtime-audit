@@ -1,0 +1,28 @@
+relationship Executions_Executables
+	fromColumn: Executables.ExecutionId
+	toColumn: Executions.ExecutionId
+
+relationship Executions_Messages
+	fromColumn: Messages.ExecutionId
+	toColumn: Executions.ExecutionId
+
+relationship Executions_Phases
+	fromColumn: PhasesComposants.ExecutionId
+	toColumn: Executions.ExecutionId
+
+relationship Executions_Flux
+	fromColumn: StatistiquesFlux.ExecutionId
+	toColumn: Executions.ExecutionId
+
+relationship Packages_Executions
+	fromColumn: Executions.PackageCle
+	toColumn: Packages.PackageCle
+
+relationship Packages_Parametres
+	fromColumn: Parametres.PackageCle
+	toColumn: Packages.PackageCle
+
+relationship Calendrier_Executions
+	fromColumn: Executions.DateDebut
+	toColumn: Calendrier.Date
+

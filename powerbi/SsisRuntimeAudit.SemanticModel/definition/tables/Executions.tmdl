@@ -1,0 +1,388 @@
+/// Une ligne par execution de package, telle que le catalogue la rapporte.
+/// 
+/// C'EST LA TABLE CENTRALE DU MODELE. Toutes les autres tables de faits s'y
+/// rattachent par ExecutionId, et c'est la seule disponible des le niveau de
+/// logging Basic - donc la seule sur laquelle on puisse compter chez n'importe
+/// quel client.
+/// 
+/// LES STATUTS SONT BRUTS, ET CE N'EST PAS UN OUBLI (decision D016).
+/// Neuf statuts existent au catalogue et ils sont conserves tels quels. Les
+/// regrouper en "reussi / echoue" ferait disparaitre Interrompue, Annulee et
+/// EnAttente, qui sont precisement les cas qu'un audit de temps d'execution
+/// doit voir. La colonne StatutCode porte le code numerique : toute logique
+/// s'ecrit dessus, jamais sur le libelle, qui est de l'affichage.
+table Executions
+	lineageTag: 003136da-8e4e-4af6-8620-b0ce505b36ed
+
+	column ExecutionId
+		dataType: int64
+		isKey
+		lineageTag: b1000000-0000-4000-8000-000000000001
+		summarizeBy: none
+		sourceColumn: ExecutionId
+
+	column Dossier
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: Dossier
+
+	column Projet
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000003
+		summarizeBy: none
+		sourceColumn: Projet
+
+	column Package
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000004
+		summarizeBy: none
+		sourceColumn: Package
+
+	/// Cle de jointure vers la table Packages. Voir fnClePackage : le nom de
+	/// package seul ne distingue pas deux dossiers du meme catalogue.
+	column PackageCle
+		dataType: string
+		isHidden
+		lineageTag: b1000000-0000-4000-8000-000000000005
+		summarizeBy: none
+		sourceColumn: PackageCle
+
+	column VersionProjet
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000006
+		summarizeBy: none
+		sourceColumn: VersionProjet
+
+	column Environnement
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000007
+		summarizeBy: none
+		sourceColumn: Environnement
+
+	column Serveur
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000008
+		summarizeBy: none
+		sourceColumn: Serveur
+
+	/// Machine qui a EXECUTE le package. Distincte du serveur portant le
+	/// catalogue des qu'il y a plusieurs noeuds - c'est elle qui compte pour
+	/// interpreter une concurrence.
+	column Machine
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000009
+		summarizeBy: none
+		sourceColumn: Machine
+
+	column Mode32Bits
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: b1000000-0000-4000-8000-000000000010
+		summarizeBy: none
+		sourceColumn: Mode32Bits
+
+	/// Coeurs de la MACHINE, releves au lancement. Ils decrivent la capacite
+	/// disponible, jamais la consommation : le catalogue ne mesure aucun usage
+	/// CPU. Voir la page Qualite, rubrique "non mesurable dans ce contexte".
+	column NombreCoeurs
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000011
+		summarizeBy: none
+		sourceColumn: NombreCoeurs
+
+	column MemoirePhysiqueKo
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000012
+		summarizeBy: none
+		sourceColumn: MemoirePhysiqueKo
+
+	column MemoireDisponibleKo
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000013
+		summarizeBy: none
+		sourceColumn: MemoireDisponibleKo
+
+	/// Code numerique du statut : 1 Creee, 2 EnCours, 3 Annulee, 4 Echec,
+	/// 5 EnAttente, 6 Interrompue, 7 Reussie, 8 EnArret, 9 Terminee.
+	/// TOUTE LOGIQUE S'ECRIT SUR CE CODE, jamais sur le libelle.
+	column StatutCode
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000014
+		summarizeBy: none
+		sourceColumn: StatutCode
+
+	column Statut
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000015
+		summarizeBy: none
+		sourceColumn: Statut
+
+	column EstTerminee
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: b1000000-0000-4000-8000-000000000016
+		summarizeBy: none
+		sourceColumn: EstTerminee
+
+	column HeureInitialisation
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b1000000-0000-4000-8000-000000000017
+		summarizeBy: none
+		sourceColumn: HeureInitialisation
+
+	column HeureDebut
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b1000000-0000-4000-8000-000000000018
+		summarizeBy: none
+		sourceColumn: HeureDebut
+
+	/// Heure de fin RAPPORTEE PAR LE CATALOGUE. Elle est vide tant que
+	/// l'execution tourne, et elle le reste sur une execution interrompue par
+	/// un arret de service. Une duree calculee dessus est donc absente, jamais
+	/// zero. Voir DureeEffectiveSecondes pour la variante bornee.
+	column HeureFin
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b1000000-0000-4000-8000-000000000019
+		summarizeBy: none
+		sourceColumn: HeureFin
+
+	column HeureFinEffective
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b1000000-0000-4000-8000-000000000020
+		summarizeBy: none
+		sourceColumn: HeureFinEffective
+
+	/// Duree en secondes, NULLE si l'execution n'a pas de fin connue.
+	/// 
+	/// LE NULL EST VOLONTAIRE ET IL A ETE RECONQUIS : une premiere version
+	/// appliquait ISNULL(..., 0) et transformait "duree inconnue" en "duree
+	/// nulle". Une execution en cours depuis six heures apparaissait alors
+	/// comme la plus rapide du parc.
+	column DureeSecondes
+		dataType: double
+		formatString: #,0.##
+		lineageTag: b1000000-0000-4000-8000-000000000021
+		summarizeBy: sum
+		sourceColumn: DureeSecondes
+
+	/// Duree bornee a l'instant d'extraction pour une execution encore en vol.
+	/// Utile pour ne pas perdre la ligne, mais elle MINORE la duree reelle :
+	/// elle mesure "au moins tant", pas "tant".
+	column DureeEffectiveSecondes
+		dataType: double
+		formatString: #,0.##
+		lineageTag: b1000000-0000-4000-8000-000000000022
+		summarizeBy: sum
+		sourceColumn: DureeEffectiveSecondes
+
+	/// Vrai si l'execution tournait encore au moment de l'extraction. Ces
+	/// lignes doivent etre exclues de toute mesure de duree : leur inclure
+	/// biaiserait la mediane vers le bas.
+	column EnVolALExtraction
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: b1000000-0000-4000-8000-000000000023
+		summarizeBy: none
+		sourceColumn: EnVolALExtraction
+
+	/// Secondes entre la creation de l'execution et son demarrage effectif.
+	/// C'est du temps d'attente, pas du temps de traitement : un delai eleve
+	/// dit quelque chose de l'ordonnancement, pas du package.
+	column DelaiDemarrageSecondes
+		dataType: double
+		formatString: #,0.##
+		lineageTag: b1000000-0000-4000-8000-000000000024
+		summarizeBy: sum
+		sourceColumn: DelaiDemarrageSecondes
+
+	column DateDebut
+		dataType: dateTime
+		formatString: Short Date
+		lineageTag: b1000000-0000-4000-8000-000000000025
+		summarizeBy: none
+		sourceColumn: DateDebut
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column HeureDuJour
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000026
+		summarizeBy: none
+		sourceColumn: HeureDuJour
+
+	column JourSemaineIso
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000027
+		summarizeBy: none
+		sourceColumn: JourSemaineIso
+
+	column EstWeekEnd
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: b1000000-0000-4000-8000-000000000028
+		summarizeBy: none
+		sourceColumn: EstWeekEnd
+
+	/// Niveau de logging de CETTE execution : Aucun, Basic, Performance,
+	/// Verbose. Il varie d'une execution a l'autre sur le meme catalogue, et
+	/// c'est lui, jamais un reglage serveur, qui dit ce qu'on peut analyser.
+	column NiveauLogging
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000029
+		summarizeBy: none
+		sourceColumn: NiveauLoggingLibelle
+
+	/// Rang du niveau de logging : 0 Aucun, 1 Basic, 2 Performance, 3 Verbose.
+	/// LE NIVEAU EST UN PLANCHER, PAS UNE EGALITE : une execution en Verbose
+	/// produit tout ce que Performance produit. Comparer avec >=, jamais avec =.
+	column RangLogging
+		dataType: int64
+		lineageTag: b1000000-0000-4000-8000-000000000030
+		summarizeBy: none
+		sourceColumn: RangLogging
+
+	/// Origine declaree du lancement. Renseignee a SQLAGENT sous l'Agent SQL.
+	/// 
+	/// ELLE IDENTIFIE L'AGENT, PAS SON CONTRAIRE : une valeur vide couvre aussi
+	/// bien un lancement manuel qu'un orchestrateur tiers ou un script. Ne
+	/// jamais conclure "lancement manuel" d'une origine vide.
+	column OrigineDeclaree
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000031
+		summarizeBy: none
+		sourceColumn: OrigineDeclaree
+
+	column DecalageUtcMinutes
+		dataType: double
+		lineageTag: 62edd893-9ce6-4d16-a767-c7cc3cb0e70b
+		summarizeBy: sum
+		sourceColumn: DecalageUtcMinutes
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'NiveauLogging 2'
+		dataType: string
+		lineageTag: f9616ac9-45e9-4c53-9879-51b4f3bfb452
+		summarizeBy: none
+		sourceColumn: NiveauLogging
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Libelle unique et lisible utilise par le Gantt : sans l'identifiant,
+	/// plusieurs executions du meme package seraient regroupees en une tache.
+	column LibelleExecution = [Package] & " #" & FORMAT ( [ExecutionId], "0" )
+		dataType: string
+		lineageTag: b1000000-0000-4000-8000-000000000032
+		summarizeBy: none
+
+	partition Executions = m
+		mode: import
+		source =
+				let
+				    Source = fnLireCsv(
+				        "Executions.csv",
+				        {"ExecutionId", "Dossier", "Projet", "Package", "VersionProjet",
+				         "Environnement", "Serveur", "Machine", "Mode32Bits", "NombreCoeurs",
+				         "MemoirePhysiqueKo", "MemoireDisponibleKo", "StatutCode", "Statut",
+				         "EstTerminee", "HeureInitialisation", "HeureDebut", "HeureFin",
+				         "DecalageUtcMinutes", "HeureFinEffective", "DureeSecondes", "DureeEffectiveSecondes",
+				         "EnVolALExtraction", "DelaiDemarrageSecondes", "DateDebut",
+				         "HeureDuJour", "JourSemaineIso", "EstWeekEnd", "NiveauLogging",
+				         "OrigineDeclaree"}),
+				
+				    Types = Table.TransformColumns(
+				        Source,
+				        {
+				            {"ExecutionId",            each try Int64.From(_) otherwise null, Int64.Type},
+				            {"VersionProjet",          each try Int64.From(_) otherwise null, Int64.Type},
+				            {"NombreCoeurs",           each try Int64.From(_) otherwise null, Int64.Type},
+				            {"MemoirePhysiqueKo",      each try Int64.From(_) otherwise null, Int64.Type},
+				            {"MemoireDisponibleKo",    each try Int64.From(_) otherwise null, Int64.Type},
+				            {"StatutCode",             each try Int64.From(_) otherwise null, Int64.Type},
+				            {"DecalageUtcMinutes",     fnNombre, type nullable number},
+				            {"HeureDuJour",            each try Int64.From(_) otherwise null, Int64.Type},
+				            {"JourSemaineIso",         each try Int64.From(_) otherwise null, Int64.Type},
+				            {"DureeSecondes",          fnNombre, type nullable number},
+				            {"DureeEffectiveSecondes", fnNombre, type nullable number},
+				            {"DelaiDemarrageSecondes", fnNombre, type nullable number},
+				            {"EstTerminee",            fnBooleen, type nullable logical},
+				            {"EstWeekEnd",             fnBooleen, type nullable logical},
+				            {"Mode32Bits",             fnBooleen, type nullable logical},
+				            {"EnVolALExtraction",      fnBooleen, type nullable logical},
+				            {"HeureInitialisation",    fnHorodatage, type nullable datetimezone},
+				            {"HeureDebut",             fnHorodatage, type nullable datetimezone},
+				            {"HeureFin",               fnHorodatage, type nullable datetimezone},
+				            {"HeureFinEffective",      fnHorodatage, type nullable datetimezone},
+				            {"DateDebut",              each try Date.From(_) otherwise null, type nullable date}
+				        }),
+				
+				    // LES HORODATAGES SONT RAMENES A L'HEURE DE MUR DU SERVEUR.
+				    //
+				    // Le CSV porte l'instant en UTC, et le decalage du serveur dans
+				    // DecalageUtcMinutes. C'est le bon format pour comparer deux
+				    // machines ou franchir un changement d'heure.
+				    //
+				    // Mais une analyse de plage horaire - "que tourne-t-il a 3 h du
+				    // matin" - n'a de sens que dans le repere de l'exploitant, celui
+				    // du serveur. Et les colonnes HeureDuJour, JourSemaineIso et
+				    // EstWeekEnd sont DEJA calculees cote serveur par la requete :
+				    // convertir vers un autre repere les mettrait en contradiction
+				    // avec les horodatages de la meme ligne, sans rien signaler.
+				    //
+				    // Voir fnHeureServeur : le decalage est pris PAR LIGNE, parce
+				    // qu'il change au passage a l'heure d'ete.
+				    Locales = fnHeuresServeurTable(
+				        Types,
+				        {"HeureInitialisation", "HeureDebut", "HeureFin", "HeureFinEffective"},
+				        "DecalageUtcMinutes"),
+				
+				    // LA COLONNE DU CSV PORTE LE CODE, PAS LE LIBELLE.
+				    //
+				    // La requete emet logging_level tel que le catalogue le donne :
+				    // 0, 1, 2, 3. Une premiere version de ce modele comparait cette
+				    // colonne aux textes "Basic", "Performance", "Verbose" - aucune
+				    // egalite ne pouvait etre vraie, donc RangLogging valait 0 sur
+				    // les 43 executions, et les trois mesures de couverture
+				    // rendaient toutes du vide.
+				    //
+				    // AUCUNE ERREUR NULLE PART. Les visuels de la page Qualite
+				    // seraient restes vierges, ce qui se lit exactement comme un
+				    // catalogue sans aucun logging - le contraire de la verite,
+				    // puisque six executions tournent en Performance ou mieux.
+				    //
+				    // Le rang vient donc du code, et le libelle est derive pour
+				    // l'affichage. C'est le code qui porte la logique, comme pour
+				    // les statuts d'execution.
+				    AvecRang = Table.AddColumn(
+				        Locales,
+				        "RangLogging",
+				        each
+				            let Code = try Int64.From([NiveauLogging]) otherwise null
+				            in  if Code = null then 0 else Code,
+				        Int64.Type),
+				
+				    AvecLibelle = Table.AddColumn(
+				        AvecRang,
+				        "NiveauLoggingLibelle",
+				        each
+				            if      [RangLogging] = 3 then "Verbose"
+				            else if [RangLogging] = 2 then "Performance"
+				            else if [RangLogging] = 1 then "Basic"
+				            else "Aucun",
+				        type text),
+				
+				    AvecCle = Table.AddColumn(
+				        AvecLibelle,
+				        "PackageCle",
+				        each fnClePackage([Dossier], [Projet], [Package]),
+				        type text)
+				in
+				    AvecCle
+

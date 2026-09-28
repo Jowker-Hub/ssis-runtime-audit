@@ -1,0 +1,150 @@
+/// Dimension des packages : un par triplet dossier / projet / package.
+/// 
+/// ELLE EST CONSTRUITE PAR UNION DE DEUX SOURCES, ET C'EST DELIBERE.
+/// 
+/// L'inventaire du catalogue donne ce qui est DEPLOYE aujourd'hui.
+/// Les executions donnent ce qui a TOURNE pendant la fenetre.
+/// 
+/// Les deux ensembles ne coincident pas. Un package supprime ou redeploye
+/// sous un autre nom a pu tourner cent fois la semaine derniere sans figurer
+/// dans l'inventaire d'aujourd'hui. Ne garder que l'inventaire ferait
+/// disparaitre ces executions du rapport - silencieusement, puisque la
+/// relation les laisserait simplement sans correspondance.
+/// 
+/// C'est la non-suppression silencieuse, le principe qui gouverne tout le
+/// projet : ce qui a existe doit rester visible, avec la mention de ce qu'il
+/// est devenu. La colonne EstDeploye porte cette mention.
+table Packages
+	lineageTag: b84bd984-2eff-4886-a9aa-19c5e04a8ee4
+
+	column PackageCle
+		dataType: string
+		isHidden
+		isKey
+		lineageTag: c1000000-0000-4000-8000-000000000001
+		summarizeBy: none
+		sourceColumn: PackageCle
+
+	column Dossier
+		dataType: string
+		lineageTag: c1000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: Dossier
+
+	column Projet
+		dataType: string
+		lineageTag: c1000000-0000-4000-8000-000000000003
+		summarizeBy: none
+		sourceColumn: Projet
+
+	column Package
+		dataType: string
+		lineageTag: c1000000-0000-4000-8000-000000000004
+		summarizeBy: none
+		sourceColumn: Package
+
+	/// Libelle complet, pour les visuels ou le seul nom de package serait
+	/// ambigu entre deux dossiers.
+	column PackageQualifie
+		dataType: string
+		lineageTag: c1000000-0000-4000-8000-000000000005
+		summarizeBy: none
+		sourceColumn: PackageQualifie
+
+	/// Vrai si le package figure dans l'inventaire du catalogue au moment de
+	/// l'extraction. FAUX NE VEUT PAS DIRE "ERREUR" : il veut dire que le
+	/// package a tourne pendant la fenetre et n'est plus deploye sous ce nom.
+	/// C'est un constat a afficher, pas une ligne a masquer.
+	column EstDeploye
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: c1000000-0000-4000-8000-000000000006
+		summarizeBy: none
+		sourceColumn: EstDeploye
+
+	/// Vrai si le package est un point d'entree declare, c'est-a-dire concu
+	/// pour etre lance directement plutot qu'appele par un autre package.
+	column EstPointEntree
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: c1000000-0000-4000-8000-000000000007
+		summarizeBy: none
+		sourceColumn: EstPointEntree
+
+	column VersionPackage
+		dataType: string
+		lineageTag: c1000000-0000-4000-8000-000000000008
+		summarizeBy: none
+		sourceColumn: VersionPackage
+
+	column DateDeploiement
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: c1000000-0000-4000-8000-000000000009
+		summarizeBy: none
+		sourceColumn: DateDeploiement
+
+	partition Packages = m
+		mode: import
+		source =
+				let
+				    Inventaire = fnLireCsv(
+				        "CatalogObjets.csv",
+				        {"TypeObjet", "Dossier", "Projet", "Package", "EstPointEntree",
+				         "VersionPackage", "DateDeploiement"}),
+				
+				    Deployes = Table.SelectRows(Inventaire, each [TypeObjet] = "Package"),
+				
+				    DeployesCle = Table.AddColumn(
+				        Deployes, "PackageCle",
+				        each fnClePackage([Dossier], [Projet], [Package]), type text),
+				
+				    DeployesTypes = Table.TransformColumns(
+				        DeployesCle,
+				        {
+				            {"EstPointEntree",  fnBooleen, type nullable logical},
+				            {"DateDeploiement", fnHorodatage, type nullable datetimezone}
+				        }),
+				
+				    DeployesFinal = Table.AddColumn(
+				        Table.TransformColumns(
+				            DeployesTypes,
+				            {{"DateDeploiement", each fnHeureServeur(_, DecalageReferenceMinutes), type nullable datetime}}),
+				        "EstDeploye", each true, type logical),
+				
+				    // Ce qui a tourne, meme si ce n'est plus la.
+				    Observes = Table.Distinct(
+				        Table.SelectColumns(Executions, {"PackageCle", "Dossier", "Projet", "Package"})),
+				
+				    Manquants = Table.NestedJoin(
+				        Observes, {"PackageCle"}, DeployesFinal, {"PackageCle"}, "correspondance", JoinKind.LeftAnti),
+				
+				    ManquantsFinal = Table.AddColumn(
+				        Table.AddColumn(
+				            Table.AddColumn(
+				                Table.AddColumn(
+				                    Table.RemoveColumns(Manquants, {"correspondance"}),
+				                    "EstPointEntree",  each null, type nullable logical),
+				                "VersionPackage",  each null, type nullable text),
+				            "DateDeploiement", each null, type nullable datetime),
+				        "EstDeploye", each false, type logical),
+				
+				    Colonnes = {"PackageCle", "Dossier", "Projet", "Package",
+				                "EstPointEntree", "VersionPackage", "DateDeploiement", "EstDeploye"},
+				
+				    Union = Table.Combine({
+				        Table.SelectColumns(DeployesFinal,  Colonnes),
+				        Table.SelectColumns(ManquantsFinal, Colonnes)}),
+				
+				    // Un meme triplet ne doit apparaitre qu'une fois : l'inventaire
+				    // peut porter plusieurs lignes pour un package redeploye.
+				    Unique = Table.Distinct(Union, {"PackageCle"}),
+				
+				    Qualifie = Table.AddColumn(
+				        Unique,
+				        "PackageQualifie",
+				        each Text.Combine(List.RemoveNulls({[Dossier], [Projet], [Package]}), " / "),
+				        type text)
+				in
+				    Qualifie
+

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "SsisRuntimeAudit"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "a46f2198-dc48-4b3d-850e-7da3482f77af"
+  }
+}

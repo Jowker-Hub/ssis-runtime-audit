@@ -1,0 +1,100 @@
+/// Grille d'instants reguliers, au pas de cinq minutes, couvrant la periode
+/// observee. TABLE DELIBEREMENT DECONNECTEE : aucune relation ne la relie aux
+/// executions.
+/// 
+/// A QUOI ELLE SERT. Une execution occupe un INTERVALLE, pas un instant. Aucune
+/// relation de modele ne sait rattacher une ligne a tous les points de temps
+/// qu'elle traverse. La grille fournit ces points, et la mesure 'Executions
+/// simultanees' compte, pour chacun, les executions qui l'enjambent.
+/// 
+/// POURQUOI CINQ MINUTES. C'est un compromis mesure, pas une valeur ronde :
+/// - a la minute, trente jours font 43 200 points, et chaque point balaie
+/// toutes les executions de la fenetre ;
+/// - au quart d'heure, les executions courtes - la majorite d'un parc SSIS -
+/// tombent entre deux points et deviennent invisibles.
+/// 
+/// CE QU'ELLE NE SERT PAS A FAIRE : trouver le maximum de concurrence. Ce
+/// maximum se calcule exactement sur les seuls instants de demarrage, et une
+/// grille le manquerait s'il tombe entre deux points. Voir la mesure
+/// 'Executions simultanees max', qui n'utilise pas cette table.
+table GrilleTemps
+	lineageTag: 2cf07b47-f4cf-43db-9749-e8497bee86ae
+
+	column Instant
+		dataType: dateTime
+		isKey
+		formatString: General Date
+		lineageTag: c8000000-0000-4000-8000-000000000001
+		summarizeBy: none
+		sourceColumn: [Instant]
+
+	column Date
+		dataType: dateTime
+		formatString: Short Date
+		lineageTag: c8000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: [Date]
+
+	column Heure
+		dataType: int64
+		lineageTag: c8000000-0000-4000-8000-000000000003
+		summarizeBy: none
+		sourceColumn: [Heure]
+
+	/// Heure affichable sur un axe : 00, 01, ... 23.
+	column HeureLibelle
+		dataType: string
+		lineageTag: c8000000-0000-4000-8000-000000000004
+		summarizeBy: none
+		sourceColumn: [HeureLibelle]
+		sortByColumn: Heure
+
+	column JourSemaineIso
+		dataType: int64
+		isHidden
+		lineageTag: c8000000-0000-4000-8000-000000000005
+		summarizeBy: none
+		sourceColumn: [JourSemaineIso]
+
+	column JourSemaine
+		dataType: string
+		lineageTag: c8000000-0000-4000-8000-000000000006
+		summarizeBy: none
+		sourceColumn: [JourSemaine]
+		sortByColumn: JourSemaineIso
+
+	partition GrilleTemps = calculated
+		mode: import
+		source =
+				VAR Debut = MIN ( Executions[HeureDebut] )
+				VAR Fin =
+				    MAXX (
+				        Executions,
+				        COALESCE ( Executions[HeureFin], Executions[HeureFinEffective], Executions[HeureDebut] )
+				    )
+				VAR Pas = TIME ( 0, 5, 0 )
+				VAR Nombre =
+				    IF (
+				        ISBLANK ( Debut ) || ISBLANK ( Fin ),
+				        1,
+				        // Borne dure : une fenetre tres large ne doit pas fabriquer
+				        // des millions de points et rendre le modele inutilisable.
+				        // 300 000 points couvrent environ mille jours au pas de cinq
+				        // minutes, largement au-dela de toute retention SSISDB usuelle.
+				        MIN ( INT ( DIVIDE ( Fin - Debut, Pas ) ) + 1, 300000 )
+				    )
+				RETURN
+				    SELECTCOLUMNS (
+				        GENERATESERIES ( 1, Nombre, 1 ),
+				        "Instant",        COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas,
+				        "Date",           DATE (
+				                              YEAR ( COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas ),
+				                              MONTH ( COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas ),
+				                              DAY ( COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas )
+				                          ),
+				        "Heure",          HOUR ( COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas ),
+				        "HeureLibelle",   FORMAT ( HOUR ( COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas ), "00" ),
+				        "JourSemaineIso", WEEKDAY ( COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas, 2 ),
+				        "JourSemaine",    FORMAT ( COALESCE ( Debut, DATE ( 2000, 1, 1 ) ) + ( [Value] - 1 ) * Pas, "dddd" )
+				    )
+

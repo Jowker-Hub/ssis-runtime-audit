@@ -1,0 +1,298 @@
+/// Dossier de base qui accumule les collectes. C'est le dossier que l'operateur
+/// a choisi dans la fenetre du runner : il contient un sous-dossier Run_... par
+/// execution de l'outil. A renseigner avant le premier rafraichissement.
+expression DossierBase = "C:\Audit\SsisRuntimeAudit" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: ac3d6182-6db5-4255-b4ff-a7df97d05534
+
+	annotation PBI_ResultType = Text
+
+/// Sous-dossier de collecte a lire, par exemple "Run_20260917-151329Z".
+/// 
+/// LAISSE VIDE, LE MODELE PREND LA COLLECTE LA PLUS RECENTE, et c'est le mode
+/// normal : un rafraichissement apres un nouveau run montre le nouveau run.
+/// 
+/// Renseigne, il epingle une collecte precise. C'est ce qu'il faut faire pour
+/// annexer une analyse a un rapport de mission : la piece jointe doit continuer
+/// de montrer ce qu'on a vu le jour ou on l'a ecrite, pas ce que la derniere
+/// collecte a trouve depuis.
+expression DossierRun = "(derniere collecte)" meta [IsParameterQuery=true, List=CollectesDisponibles, DefaultValue="(derniere collecte)", Type="Text", IsParameterQueryRequired=false]
+	lineageTag: ac96ad57-c340-494f-b297-6319ee2e91c4
+
+	annotation PBI_ResultType = Text
+
+/// Base, normalisee : toujours terminee par un separateur.
+expression CheminBase = if Text.EndsWith(DossierBase, "\") then DossierBase else DossierBase & "\"
+	lineageTag: a7cd67b4-443b-4abe-9f22-87b567450a19
+
+/// Les collectes presentes dans le dossier de base, la plus recente en tete.
+/// 
+/// ELLE ALIMENTE LA LISTE DEROULANTE DU PARAMETRE DossierRun, et c'est tout son
+/// interet : changer de collecte devient un choix dans une liste, pas la saisie
+/// exacte d'un nom de dossier a vingt caracteres. Une faute de frappe dans ce
+/// nom donnerait un chemin inexistant, donc des tables vides - c'est-a-dire un
+/// rapport qui ressemble a un parc sans activite.
+/// 
+/// Le tri descendant sur le NOM suffit : les dossiers sont nommes
+/// Run_AAAAMMJJ-HHMMSSZ, donc l'ordre alphabetique EST l'ordre chronologique.
+/// C'est la raison d'etre du format ISO dans le nom, et cela evite de dependre
+/// d'une date de systeme de fichiers, qu'une copie ou une restauration modifie.
+/// 
+/// Le premier element n'est pas un dossier mais un SENTINEL : il demande la
+/// derniere collecte, quelle qu'elle soit. C'est le mode normal - un
+/// rafraichissement apres un nouveau run montre le nouveau run, sans toucher au
+/// parametre.
+expression CollectesDisponibles =
+		let
+		    Contenu  = Folder.Contents(CheminBase),
+		    Dossiers = Table.SelectRows(
+		                   Contenu,
+		                   each [Extension] = "" and Text.StartsWith([Name], "Run_")),
+		    Tries    = Table.Sort(Dossiers, {{"Name", Order.Descending}}),
+		    Noms     = Table.Column(Tries, "Name")
+		in
+		    List.Combine({{"(derniere collecte)"}, Noms})
+	lineageTag: d95e369d-d2c2-4e28-a2c1-060611879ea3
+
+/// Chemin effectif de la collecte lue, termine par un separateur.
+/// 
+/// TROIS VALEURS DE DossierRun MENENT A LA DERNIERE COLLECTE : le sentinel, la
+/// chaine vide et null. Les trois sont traitees pareil parce qu'elles arrivent
+/// vraiment : le sentinel quand on choisit dans la liste, la chaine vide quand
+/// on efface le champ, null quand le parametre n'a jamais ete pose.
+/// 
+/// UN NOM DE COLLECTE QUI N'EXISTE PAS EST UNE ERREUR, PAS UN DOSSIER VIDE.
+/// Sans ce controle, un nom mal saisi donnerait un chemin inexistant : tous
+/// les CSV seraient manquants, fnLireCsv rendrait des tables vides, et le
+/// rapport s'afficherait proprement en montrant un parc sans la moindre
+/// execution. Rien ne distinguerait cela d'un catalogue reellement vide.
+expression CheminCollecte =
+		let
+		    Demande =
+		        if DossierRun = null or DossierRun = "" or DossierRun = "(derniere collecte)"
+		        then null
+		        else DossierRun,
+		
+		    Choisi =
+		        if Demande <> null then
+		            let
+		                Candidat = CheminBase & Demande
+		            in
+		                if List.Contains(CollectesDisponibles, Demande) then
+		                    Candidat
+		                else
+		                    error Error.Record(
+		                        "Collecte introuvable",
+		                        "Aucun sous-dossier nomme """ & Demande & """ dans " & CheminBase,
+		                        "Collectes disponibles : " & Text.Combine(List.Skip(CollectesDisponibles, 1), ", "))
+		        else
+		            let
+		                Collectes = List.Skip(CollectesDisponibles, 1)
+		            in
+		                if List.IsEmpty(Collectes) then
+		                    error Error.Record(
+		                        "Aucune collecte",
+		                        "Aucun sous-dossier Run_... dans " & CheminBase,
+		                        "Lancer Invoke-SsisRuntimeAudit, ou corriger le parametre DossierBase.")
+		                else
+		                    CheminBase & Collectes{0}
+		in
+		    if Text.EndsWith(Choisi, "\") then Choisi else Choisi & "\"
+	lineageTag: e0273ce6-d4ee-4bc1-b1ea-89123c5c515f
+
+/// Lit un CSV de la collecte, ou rend une table VIDE MAIS TYPEE s'il manque.
+/// 
+/// UN FICHIER ABSENT N'EST PAS UNE PANNE, C'EST UN CONSTAT.
+/// Le runner ne produit aucun fichier pour une extraction indisponible,
+/// refusee pour volume ou en echec - et c'est deliberé : un CSV reduit a ses
+/// en-tetes ressemblerait a une extraction reussie sans resultat, ce qui est
+/// un tout autre constat.
+/// 
+/// Si le modele echouait au rafraichissement sur un fichier absent, le
+/// rapport deviendrait inutilisable des qu'un catalogue client ne tourne
+/// qu'en Basic, c'est-a-dire la plupart du temps. Il rend donc une table vide,
+/// et la page Qualite dit POURQUOI elle est vide, en lisant Extractions.csv.
+/// 
+/// La difference entre "aucun resultat" et "pas de donnee disponible" est
+/// portee par la table Extractions, jamais par un visuel vide.
+expression fnLireCsv =
+		let
+		    Fonction = (nomFichier as text, colonnes as list) as table =>
+		        let
+		            Chemin = CheminCollecte & nomFichier,
+		            Vide   = #table(colonnes, {}),
+		            Lu     =
+		                try
+		                    let
+		                        Brut    = Csv.Document(
+		                                      File.Contents(Chemin),
+		                                      [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+		                        EnTetes = Table.PromoteHeaders(Brut, [PromoteAllScalars = true])
+		                    in
+		                        EnTetes
+		                    otherwise Vide,
+		
+		            // Une colonne promise par le plan mais absente du fichier doit
+		            // exister quand meme, sinon toutes les mesures qui s'y referent
+		            // cassent le modele entier au lieu de rendre du vide.
+		            Complete = Table.SelectColumns(Lu, colonnes, MissingField.UseNull)
+		        in
+		            Complete
+		in
+		    Fonction
+	lineageTag: 89fe5509-4b57-4909-bb00-f6e3421b0f75
+
+/// Convertit un texte ISO 8601 en datetimezone, et rend null sur une valeur
+/// vide ou illisible.
+/// 
+/// PIEGE MESURE COTE SQL, DONT CE MODELE DEPEND :
+/// les horodatages sont exportes au style 127, qui conserve la precision
+/// native (sept decimales) et le decalage. Le style 120, utilise au depart,
+/// ecrasait les fractions de seconde : deux executables distincts a .7655161
+/// et .8125161 sortaient tous deux a 08:07:10, et toute mesure de duree fine
+/// devenait fausse sans que rien ne le signale.
+expression fnHorodatage =
+		let
+		    Fonction = (valeur as nullable text) as nullable datetimezone =>
+		        if valeur = null or valeur = "" then null
+		        else try DateTimeZone.FromText(valeur) otherwise null
+		in
+		    Fonction
+	lineageTag: 36cec82c-d686-42e9-bb0a-d07f967a5080
+
+/// Convertit un texte en nombre decimal EN CULTURE INVARIANTE.
+/// 
+/// Sans la culture, un poste francais lit "11.1" comme onze-virgule-un ou
+/// echoue selon le contexte. Les CSV sont ecrits en InvariantCulture par le
+/// runner ; ils doivent etre relus de la meme facon.
+expression fnNombre =
+		let
+		    Fonction = (valeur as nullable text) as nullable number =>
+		        if valeur = null or valeur = "" then null
+		        else try Number.FromText(valeur, "en-US") otherwise null
+		in
+		    Fonction
+	lineageTag: 03658c18-8399-445a-b506-2ccb0f298084
+
+/// Convertit les textes "True"/"False" ecrits par PowerShell en booleen.
+expression fnBooleen =
+		let
+		    Fonction = (valeur as nullable text) as nullable logical =>
+		        if valeur = null or valeur = "" then null
+		        else Text.Lower(valeur) = "true"
+		in
+		    Fonction
+	lineageTag: 631491a2-80bb-4ea3-a67e-c7bf786acf17
+
+/// Ramene un instant UTC a l'heure de mur DU SERVEUR, a partir du decalage
+/// releve pour cette execution-la.
+/// 
+/// LE PIEGE QUE CELA EVITE, ET IL EST MUET.
+/// Les CSV portent l'instant en UTC - la chaine se termine par Z - et le
+/// decalage du serveur dans une colonne separee, DecalageUtcMinutes.
+/// 
+/// La premiere version de ce modele appelait DateTimeZone.ToLocal, qui
+/// convertit vers le fuseau DU POSTE D'ANALYSE. Sur un poste situe dans le
+/// meme fuseau que le serveur, les deux coincident et rien ne se voit. Sur
+/// l'audit d'un serveur etranger - ou depuis un poste en deplacement - les
+/// heures affichees se decalaient de plusieurs heures, et surtout elles
+/// CONTREDISAIENT les colonnes HeureDuJour et JourSemaineIso, que la requete
+/// SQL calcule cote serveur.
+/// 
+/// Mesure : start_time a 06:07 UTC, decalage 120, HeureDuJour = 8. Un poste
+/// en UTC aurait affiche 06:07 en face d'un "8 h" venu du serveur.
+/// 
+/// Une analyse de plage horaire - "que tourne-t-il a 3 h du matin" - n'a de
+/// sens que dans le repere de l'exploitant. C'est celui du serveur.
+/// 
+/// LE DECALAGE EST PRIS PAR LIGNE, jamais une constante : il change au passage
+/// a l'heure d'ete, et une constante fausserait d'une heure la moitie de
+/// l'annee.
+expression fnHeureServeur =
+		let
+		    Fonction = (valeur as nullable datetimezone, decalageMinutes as nullable number) as nullable datetime =>
+		        if valeur = null then null
+		        else
+		            let
+		                Minutes = decalageMinutes ?? 0,
+		                Heures  = Number.IntegerDivide(Minutes, 60),
+		                Reste   = Number.Mod(Minutes, 60),
+		                Cale    = DateTimeZone.SwitchZone(valeur, Heures, Reste)
+		            in
+		                DateTimeZone.RemoveZone(Cale)
+		in
+		    Fonction
+	lineageTag: 1edc8fce-df40-404d-b8ea-c2bd73aac166
+
+/// Applique fnHeureServeur a plusieurs colonnes d'une table, en lisant le
+/// decalage sur la MEME LIGNE.
+/// 
+/// Table.TransformColumns ne convient pas ici : elle ne voit que la valeur,
+/// jamais le reste de la ligne, donc pas le decalage qui lui correspond.
+expression fnHeuresServeurTable =
+		let
+		    Fonction = (source as table, colonnes as list, colonneDecalage as text) as table =>
+		        List.Accumulate(
+		            colonnes,
+		            source,
+		            (etat, nom) =>
+		                let
+		                    Ajoutee = Table.AddColumn(
+		                        etat,
+		                        nom & "__serveur",
+		                        each fnHeureServeur(
+		                            Record.FieldOrDefault(_, nom, null),
+		                            Record.FieldOrDefault(_, colonneDecalage, 0)),
+		                        type nullable datetime),
+		                    Sans    = Table.RemoveColumns(Ajoutee, {nom}),
+		                    Renomme = Table.RenameColumns(Sans, {{nom & "__serveur", nom}})
+		                in
+		                    Renomme)
+		in
+		    Fonction
+	lineageTag: 094763f8-1b5e-42cc-9550-d598fdf9e38c
+
+/// Decalage de reference de la collecte, en minutes : celui de l'execution la
+/// plus recente.
+/// 
+/// IL NE SERT QU'AUX TABLES QUI N'ONT PAS DE DECALAGE PAR LIGNE - les versions
+/// de projet. C'est une approximation, et elle est bornee : elle ne peut se
+/// tromper que d'une heure, et seulement pour un deploiement situe de l'autre
+/// cote d'un changement d'heure.
+/// 
+/// Consequence assumee : un REPERE de deploiement peut alors etre pose une
+/// heure a cote. Ces reperes sont deja presentes comme un encadrement, avec
+/// leur incertitude en heures ; l'approximation reste dans cet ordre de
+/// grandeur. Aucune DUREE n'en depend.
+/// 
+/// La vraie correction est en amont - emettre le decalage dans 16_versions.sql
+/// comme les autres extractions le font. Inscrit comme point ouvert.
+expression DecalageReferenceMinutes =
+		let
+		    Source = fnLireCsv("Executions.csv", {"HeureDebut", "DecalageUtcMinutes"}),
+		    Valeurs = List.RemoveNulls(
+		        List.Transform(
+		            Table.Column(Source, "DecalageUtcMinutes"),
+		            each try Number.FromText(_, "en-US") otherwise null))
+		in
+		    if List.IsEmpty(Valeurs) then 0 else List.Last(Valeurs)
+	lineageTag: 294435f2-f3b1-4073-8109-9d26f17ce0cd
+
+/// Cle stable d'un package : le triplet dossier / projet / package.
+/// 
+/// AUCUNE DES TROIS COLONNES NE SUFFIT SEULE. Deux dossiers du meme catalogue
+/// peuvent porter un projet de meme nom, et deux projets un package de meme nom
+/// - c'est courant entre un dossier de production et un dossier de recette.
+/// Joindre sur le seul nom de package melangerait leurs executions, et la
+/// mediane obtenue ne decrirait alors aucun package reel.
+/// 
+/// Le separateur est un caractere de controle : il ne peut pas apparaitre dans
+/// un nom d'objet SSIS, donc deux triplets differents ne peuvent pas produire
+/// la meme cle.
+expression fnClePackage =
+		let
+		    Fonction = (dossier as nullable text, projet as nullable text, package as nullable text) as text =>
+		        Text.Combine({dossier ?? "", projet ?? "", package ?? ""}, "#(0001)")
+		in
+		    Fonction
+	lineageTag: 133a56dd-c863-4eb2-87cb-aa14f30332bd
+

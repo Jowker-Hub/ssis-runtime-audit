@@ -1,0 +1,204 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 1291.5122002538874,
+        "y": 488.01804100229413
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 1397.7125360663581,
+            "y": 0
+          },
+          "nodeIndex": "Mesures",
+          "nodeLineageTag": "2e28ee0f-bf97-4118-8c9d-571d5823583a",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 1
+        },
+        {
+          "location": {
+            "x": 424.72777723878289,
+            "y": 404.06088462687785
+          },
+          "nodeIndex": "Calendrier",
+          "nodeLineageTag": "612cfe1b-76e9-4b38-9248-f808bebce9dd",
+          "size": {
+            "height": 296,
+            "width": 234
+          },
+          "zIndex": 2
+        },
+        {
+          "location": {
+            "x": 1440.4662219616516,
+            "y": 353.745606274902
+          },
+          "nodeIndex": "Collecte",
+          "nodeLineageTag": "679e1786-009c-4885-a516-e6032422491e",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 3
+        },
+        {
+          "location": {
+            "x": 1662.0115924218544,
+            "y": 146.33347884832608
+          },
+          "nodeIndex": "ContexteCatalogue",
+          "nodeLineageTag": "6f18d14c-d21f-4597-9acc-aff1fbcf8626",
+          "size": {
+            "height": 176,
+            "width": 234
+          },
+          "zIndex": 4
+        },
+        {
+          "location": {
+            "x": 1014.4898450451027,
+            "y": 0
+          },
+          "nodeIndex": "Executables",
+          "nodeLineageTag": "b3f4f2e9-f02f-48c7-bb46-0bdd25b076f7",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 5
+        },
+        {
+          "location": {
+            "x": 1011.1997048327144,
+            "y": 345.3896507043894
+          },
+          "nodeIndex": "Executions",
+          "nodeLineageTag": "003136da-8e4e-4af6-8620-b0ce505b36ed",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 6
+        },
+        {
+          "location": {
+            "x": 2249.7125360663586,
+            "y": 353.745606274902
+          },
+          "nodeIndex": "Extractions",
+          "nodeLineageTag": "ed285d12-1555-451f-8d14-7f2eb0b754f9",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 7
+        },
+        {
+          "location": {
+            "x": 2533.7125360663586,
+            "y": 391.745606274902
+          },
+          "nodeIndex": "GrilleTemps",
+          "nodeLineageTag": "2cf07b47-f4cf-43db-9749-e8497bee86ae",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 8
+        },
+        {
+          "location": {
+            "x": 564.39000268405437,
+            "y": 821.58769016417341
+          },
+          "nodeIndex": "Messages",
+          "nodeLineageTag": "bc6b6530-ea92-4c66-848c-20a60aeef616",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 14
+        },
+        {
+          "location": {
+            "x": 1188.2045476505923,
+            "y": 820.80809865133131
+          },
+          "nodeIndex": "Packages",
+          "nodeLineageTag": "b84bd984-2eff-4886-a9aa-19c5e04a8ee4",
+          "size": {
+            "height": 296,
+            "width": 234
+          },
+          "zIndex": 9
+        },
+        {
+          "location": {
+            "x": 1586.3396334506815,
+            "y": 825.69047385619
+          },
+          "nodeIndex": "Parametres",
+          "nodeLineageTag": "53f9f379-50bb-4555-9834-7e209628f28a",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 10
+        },
+        {
+          "location": {
+            "x": 849.4171104611321,
+            "y": 821.54082552582963
+          },
+          "nodeIndex": "PhasesComposants",
+          "nodeLineageTag": "a739b47b-3caf-4b6f-9104-e808b80bfc7c",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 11
+        },
+        {
+          "location": {
+            "x": 644.29180038560992,
+            "y": 68.577632435855691
+          },
+          "nodeIndex": "StatistiquesFlux",
+          "nodeLineageTag": "ebd35801-5df2-476d-aa12-b4f3ab428620",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 12
+        },
+        {
+          "location": {
+            "x": 2817.7125360663586,
+            "y": 353.745606274902
+          },
+          "nodeIndex": "VersionsProjet",
+          "nodeLineageTag": "66582130-4a92-44ca-83af-4f22891a32ff",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 13
+        }
+      ],
+      "name": "All tables",
+      "zoomValue": 78.35775765812042,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "All tables",
+  "defaultDiagram": "All tables"
+}

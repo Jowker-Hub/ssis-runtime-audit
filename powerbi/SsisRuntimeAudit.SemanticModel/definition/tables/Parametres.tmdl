@@ -1,0 +1,119 @@
+/// Un parametre declare par projet ou par package, avec son origine de valeur.
+/// 
+/// AUCUNE VALEUR SENSIBLE N'EST EXTRAITE. La colonne Sensible dit qu'un
+/// parametre est marque sensible au catalogue ; sa valeur, elle, ne quitte
+/// jamais le serveur. ValeurDefinie dit seulement SI une valeur est posee.
+/// 
+/// Ce que cette table sert a voir : un package dont la configuration vient
+/// d'un environnement plutot que d'une valeur en dur, et l'inverse. C'est du
+/// contexte d'interpretation, pas une mesure de temps.
+table Parametres
+	lineageTag: 53f9f379-50bb-4555-9834-7e209628f28a
+
+	column Dossier
+		dataType: string
+		lineageTag: c7000000-0000-4000-8000-000000000001
+		summarizeBy: none
+		sourceColumn: Dossier
+
+	column Projet
+		dataType: string
+		lineageTag: c7000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: Projet
+
+	column Package
+		dataType: string
+		lineageTag: c7000000-0000-4000-8000-000000000003
+		summarizeBy: none
+		sourceColumn: Package
+
+	column PackageCle
+		dataType: string
+		isHidden
+		lineageTag: c7000000-0000-4000-8000-000000000004
+		summarizeBy: none
+		sourceColumn: PackageCle
+
+	/// Projet ou Package : a quel niveau le parametre est declare.
+	column Portee
+		dataType: string
+		lineageTag: c7000000-0000-4000-8000-000000000005
+		summarizeBy: none
+		sourceColumn: Portee
+
+	column Parametre
+		dataType: string
+		lineageTag: c7000000-0000-4000-8000-000000000006
+		summarizeBy: none
+		sourceColumn: Parametre
+
+	column TypeDonnee
+		dataType: string
+		lineageTag: c7000000-0000-4000-8000-000000000007
+		summarizeBy: none
+		sourceColumn: TypeDonnee
+
+	column Obligatoire
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: c7000000-0000-4000-8000-000000000008
+		summarizeBy: none
+		sourceColumn: Obligatoire
+
+	column Sensible
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: c7000000-0000-4000-8000-000000000009
+		summarizeBy: none
+		sourceColumn: Sensible
+
+	/// Vrai si une valeur est posee. LA VALEUR ELLE-MEME N'EST PAS EXTRAITE.
+	column ValeurDefinie
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: c7000000-0000-4000-8000-000000000010
+		summarizeBy: none
+		sourceColumn: ValeurDefinie
+
+	/// D'ou vient la valeur : litterale, reference d'environnement, defaut.
+	column OrigineValeur
+		dataType: string
+		lineageTag: c7000000-0000-4000-8000-000000000011
+		summarizeBy: none
+		sourceColumn: OrigineValeur
+
+	column EstGestionnaireConnexion
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: c7000000-0000-4000-8000-000000000012
+		summarizeBy: none
+		sourceColumn: EstGestionnaireConnexion
+
+	partition Parametres = m
+		mode: import
+		source =
+				let
+				    Source = fnLireCsv(
+				        "Parametres.csv",
+				        {"Dossier", "Projet", "Package", "Portee", "Parametre", "TypeDonnee",
+				         "Obligatoire", "Sensible", "ValeurDefinie", "OrigineValeur",
+				         "EstGestionnaireConnexion"}),
+				
+				    Types = Table.TransformColumns(
+				        Source,
+				        {
+				            {"Obligatoire",              fnBooleen, type nullable logical},
+				            {"Sensible",                 fnBooleen, type nullable logical},
+				            {"ValeurDefinie",            fnBooleen, type nullable logical},
+				            {"EstGestionnaireConnexion", fnBooleen, type nullable logical}
+				        }),
+				
+				    AvecCle = Table.AddColumn(
+				        Types,
+				        "PackageCle",
+				        each fnClePackage([Dossier], [Projet], [Package]),
+				        type text)
+				in
+				    AvecCle
+

@@ -1,0 +1,141 @@
+/// Une ligne par message d'erreur ou d'avertissement remonte par le catalogue.
+/// 
+/// L'EXTRACTION EST DELIBEREMENT RESTREINTE aux types erreur et avertissement.
+/// Le journal complet d'une execution en Verbose se compte en dizaines de
+/// milliers de lignes de progression, sans valeur pour un audit de temps.
+/// 
+/// LE TEXTE DES MESSAGES N'EST PAS EXTRAIT, et c'est une decision de fond
+/// (regle 6 du projet) : un message SSIS contient couramment un nom de serveur,
+/// un chemin UNC, un extrait de requete, parfois une valeur metier. Le modele
+/// porte le CODE, le type, l'evenement et le composant source - de quoi
+/// classer et compter, jamais de quoi faire fuiter une donnee client.
+/// 
+/// Consequence assumee : ce rapport dit QU'IL Y A eu des incidents, sur quel
+/// composant et a quelle frequence. Il ne dit pas ce qu'ils racontent. Pour
+/// cela, on retourne au catalogue.
+table Messages
+	lineageTag: bc6b6530-ea92-4c66-848c-20a60aeef616
+
+	column MessageId
+		dataType: int64
+		isKey
+		lineageTag: b3000000-0000-4000-8000-000000000001
+		summarizeBy: none
+		sourceColumn: MessageId
+
+	column ExecutionId
+		dataType: int64
+		lineageTag: b3000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: ExecutionId
+
+	column PackageCle
+		dataType: string
+		isHidden
+		lineageTag: b3000000-0000-4000-8000-000000000003
+		summarizeBy: none
+		sourceColumn: PackageCle
+
+	column Package
+		dataType: string
+		lineageTag: b3000000-0000-4000-8000-000000000004
+		summarizeBy: none
+		sourceColumn: Package
+
+	/// 120 = erreur, 110 = avertissement. La logique s'ecrit sur le code.
+	column TypeCode
+		dataType: int64
+		lineageTag: b3000000-0000-4000-8000-000000000005
+		summarizeBy: none
+		sourceColumn: TypeCode
+
+	column Type
+		dataType: string
+		lineageTag: b3000000-0000-4000-8000-000000000006
+		summarizeBy: none
+		sourceColumn: Type
+
+	/// Code du message SSIS. C'est la seule cle de regroupement fiable : deux
+	/// occurrences du meme probleme portent le meme code et des textes
+	/// differents.
+	column CodeMessage
+		dataType: int64
+		lineageTag: b3000000-0000-4000-8000-000000000007
+		summarizeBy: none
+		sourceColumn: CodeMessage
+
+	column Evenement
+		dataType: string
+		lineageTag: b3000000-0000-4000-8000-000000000008
+		summarizeBy: none
+		sourceColumn: Evenement
+
+	column Source
+		dataType: string
+		lineageTag: b3000000-0000-4000-8000-000000000009
+		summarizeBy: none
+		sourceColumn: Source
+
+	column SousComposant
+		dataType: string
+		lineageTag: b3000000-0000-4000-8000-000000000010
+		summarizeBy: none
+		sourceColumn: SousComposant
+
+	column CheminExecution
+		dataType: string
+		lineageTag: b3000000-0000-4000-8000-000000000011
+		summarizeBy: none
+		sourceColumn: CheminExecution
+
+	column HeureMessage
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b3000000-0000-4000-8000-000000000012
+		summarizeBy: none
+		sourceColumn: HeureMessage
+
+	column DecalageUtcMinutes
+		dataType: double
+		lineageTag: eb281a94-aa69-4f8d-8318-362249925c9a
+		summarizeBy: sum
+		sourceColumn: DecalageUtcMinutes
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition Messages = m
+		mode: import
+		source =
+				let
+				    Source = fnLireCsv(
+				        "Messages.csv",
+				        {"MessageId", "ExecutionId", "Dossier", "Projet", "Package",
+				         "TypeCode", "Type", "CodeMessage", "Evenement", "Source",
+				         "SousComposant", "CheminExecution", "HeureMessage", "DecalageUtcMinutes"}),
+				
+				    Types = Table.TransformColumns(
+				        Source,
+				        {
+				            {"MessageId",    each try Int64.From(_) otherwise null, Int64.Type},
+				            {"ExecutionId",  each try Int64.From(_) otherwise null, Int64.Type},
+				            {"TypeCode",     each try Int64.From(_) otherwise null, Int64.Type},
+				            {"CodeMessage",  each try Int64.From(_) otherwise null, Int64.Type},
+				            {"HeureMessage", fnHorodatage, type nullable datetimezone},
+				            {"DecalageUtcMinutes", fnNombre, type nullable number}
+				        }),
+				
+				    // Heure de mur DU SERVEUR, decalage pris par ligne. Voir fnHeureServeur.
+				    Locales = fnHeuresServeurTable(Types, {"HeureMessage"}, "DecalageUtcMinutes"),
+				
+				    AvecCle = Table.AddColumn(
+				        Locales,
+				        "PackageCle",
+				        each fnClePackage([Dossier], [Projet], [Package]),
+				        type text),
+				
+				    Final = Table.RemoveColumns(AvecCle, {"Dossier", "Projet"})
+				in
+				    Final
+

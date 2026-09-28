@@ -1,0 +1,15 @@
+/// Seuil interactif de duree minimale pour la page Gantt, en minutes.
+table SeuilGantt
+	lineageTag: e9000000-0000-4000-8000-000000000001
+
+	column Minutes
+		dataType: int64
+		formatString: 0 "min"
+		lineageTag: e9000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: [Value]
+
+	partition SeuilGantt = calculated
+		mode: import
+		source = GENERATESERIES ( 0, 120, 1 )
+

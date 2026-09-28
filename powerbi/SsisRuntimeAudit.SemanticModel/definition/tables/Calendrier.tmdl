@@ -1,0 +1,103 @@
+/// Table de dates, derivee des executions observees.
+/// 
+/// ELLE COUVRE LA FENETRE REELLEMENT EXTRAITE, PAS UNE ANNEE CIVILE ENTIERE.
+/// Un calendrier plus large que les donnees fabrique des journees a zero
+/// execution qui n'ont jamais ete observees, et une moyenne par jour calculee
+/// dessus s'effondre sans raison.
+/// 
+/// SI AUCUNE EXECUTION N'EST LUE, elle rend une seule journee arbitraire plutot
+/// qu'une table vide : un modele dont la table de dates est vide refuse de se
+/// rafraichir, et le rapport deviendrait inaccessible au moment precis ou il
+/// devrait afficher "aucune execution dans cette fenetre".
+table Calendrier
+	lineageTag: 612cfe1b-76e9-4b38-9248-f808bebce9dd
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: Short Date
+		lineageTag: c4000000-0000-4000-8000-000000000001
+		dataCategory: PaddedDateTableDates
+		summarizeBy: none
+		sourceColumn: [Date]
+
+	column Annee
+		dataType: int64
+		lineageTag: c4000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: [Annee]
+
+	column Mois
+		dataType: string
+		lineageTag: c4000000-0000-4000-8000-000000000003
+		summarizeBy: none
+		sourceColumn: [Mois]
+		sortByColumn: MoisNumero
+
+	column MoisNumero
+		dataType: int64
+		isHidden
+		lineageTag: c4000000-0000-4000-8000-000000000004
+		summarizeBy: none
+		sourceColumn: [MoisNumero]
+
+	column AnneeMois
+		dataType: string
+		lineageTag: c4000000-0000-4000-8000-000000000005
+		summarizeBy: none
+		sourceColumn: [AnneeMois]
+		sortByColumn: AnneeMoisNumero
+
+	column AnneeMoisNumero
+		dataType: int64
+		isHidden
+		lineageTag: c4000000-0000-4000-8000-000000000006
+		summarizeBy: none
+		sourceColumn: [AnneeMoisNumero]
+
+	/// Jour de semaine ISO : 1 = lundi. La convention ISO est celle de
+	/// l'exploitation, et elle evite le decalage du dimanche selon la locale.
+	column JourSemaineIso
+		dataType: int64
+		isHidden
+		lineageTag: c4000000-0000-4000-8000-000000000007
+		summarizeBy: none
+		sourceColumn: [JourSemaineIso]
+
+	column JourSemaine
+		dataType: string
+		lineageTag: c4000000-0000-4000-8000-000000000008
+		summarizeBy: none
+		sourceColumn: [JourSemaine]
+		sortByColumn: JourSemaineIso
+
+	column EstWeekEnd
+		dataType: boolean
+		formatString: """Vrai"";""Vrai"";""Faux"""
+		lineageTag: c4000000-0000-4000-8000-000000000009
+		summarizeBy: none
+		sourceColumn: [EstWeekEnd]
+
+	partition Calendrier = calculated
+		mode: import
+		source =
+				VAR Premiere = MIN ( Executions[DateDebut] )
+				VAR Derniere = MAX ( Executions[DateDebut] )
+				VAR Base =
+				    CALENDAR (
+				        COALESCE ( Premiere, DATE ( 2000, 1, 1 ) ),
+				        COALESCE ( Derniere, DATE ( 2000, 1, 1 ) )
+				    )
+				RETURN
+				    ADDCOLUMNS (
+				        Base,
+				        "Annee",           YEAR ( [Date] ),
+				        "MoisNumero",      MONTH ( [Date] ),
+				        "Mois",            FORMAT ( [Date], "mmmm" ),
+				        "AnneeMoisNumero", YEAR ( [Date] ) * 100 + MONTH ( [Date] ),
+				        "AnneeMois",       FORMAT ( [Date], "mmm yyyy" ),
+				        "JourSemaineIso",  WEEKDAY ( [Date], 2 ),
+				        "JourSemaine",     FORMAT ( [Date], "dddd" ),
+				        "EstWeekEnd",      WEEKDAY ( [Date], 2 ) > 5
+				    )
+

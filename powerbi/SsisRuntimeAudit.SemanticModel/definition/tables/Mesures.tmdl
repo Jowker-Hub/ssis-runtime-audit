@@ -1,0 +1,893 @@
+/// Table sans donnees : elle ne porte que les mesures.
+/// 
+/// UNE REGLE GOUVERNE TOUT CE FICHIER, ET ELLE VIENT DE LA MATRICE DE
+/// CAPACITES : une mesure ne doit jamais rendre une valeur qui ressemble a un
+/// resultat quand elle n'a rien mesure. Zero et "pas de donnee" sont deux
+/// constats opposes, et le premier se lit comme une performance.
+/// 
+/// C'est pourquoi les mesures de duree rendent BLANK sur un effectif vide
+/// plutot que zero, et pourquoi chaque zone conditionnelle du rapport dispose
+/// d'une mesure "Motif ..." qui dit POURQUOI elle est vide.
+table Mesures
+	lineageTag: 2e28ee0f-bf97-4118-8c9d-571d5823583a
+
+	/// 1. VOLUMETRIE ET ACTIVITE
+	/// 
+	/// Nombre d'executions dans le perimetre filtre, TOUS STATUTS CONFONDUS.
+	/// C'est le denominateur de reference de la page Vue d'ensemble.
+	measure 'Executions observees' = COUNTROWS ( Executions )
+		formatString: #,0
+		displayFolder: 1 - Activite
+		lineageTag: d1000000-0000-4000-8000-000000000001
+
+	/// Executions sur lesquelles une DUREE a un sens : terminees, et dont la
+	/// fin est connue.
+	/// 
+	/// ELLE EST LE DENOMINATEUR DE TOUTES LES MESURES DE DUREE, et l'ecart
+	/// avec "Executions observees" est lui-meme un constat : s'il est grand,
+	/// une part importante du parc n'a pas de duree exploitable, et toute
+	/// mediane ne decrit alors qu'une minorite.
+	measure 'Executions mesurables' =
+			CALCULATE (
+			    COUNTROWS ( Executions ),
+			    KEEPFILTERS ( Executions[EnVolALExtraction] = FALSE () ),
+			    KEEPFILTERS ( NOT ISBLANK ( Executions[DureeSecondes] ) )
+			)
+		formatString: #,0
+		displayFolder: 1 - Activite
+		lineageTag: d1000000-0000-4000-8000-000000000002
+
+	/// Executions encore en cours au moment de l'extraction. Elles sont
+	/// EXCLUES des durees : leur duree connue minore la duree reelle, et les
+	/// inclure tire toute mediane vers le bas.
+	measure 'Executions en vol' =
+			CALCULATE (
+			    COUNTROWS ( Executions ),
+			    KEEPFILTERS ( Executions[EnVolALExtraction] = TRUE () )
+			)
+		formatString: #,0
+		displayFolder: 1 - Activite
+		lineageTag: d1000000-0000-4000-8000-000000000003
+
+	measure 'Packages actifs' = DISTINCTCOUNT ( Executions[PackageCle] )
+		formatString: #,0
+		displayFolder: 1 - Activite
+		lineageTag: d1000000-0000-4000-8000-000000000004
+
+	measure 'Versions observees' = DISTINCTCOUNT ( Executions[VersionProjet] )
+		formatString: #,0
+		displayFolder: 1 - Activite
+		lineageTag: d1000000-0000-4000-8000-000000000005
+
+	measure 'Machines observees' = DISTINCTCOUNT ( Executions[Machine] )
+		formatString: #,0
+		displayFolder: 1 - Activite
+		lineageTag: d1000000-0000-4000-8000-000000000006
+
+	/// Somme des durees, en heures. Elle repond a "ou passe le temps", pas a
+	/// "qu'est-ce qui est lent" : un package rapide lance mille fois pese plus
+	/// qu'un package lent lance deux fois, et c'est une information differente.
+	measure 'Duree cumulee (h)' =
+			VAR Mesurables =
+			    FILTER (
+			        Executions,
+			        NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    DIVIDE ( SUMX ( Mesurables, Executions[DureeSecondes] ), 3600 )
+		formatString: #,0.0" h"
+		displayFolder: 1 - Activite
+		lineageTag: d1000000-0000-4000-8000-000000000007
+
+	/// 2. DUREES
+	/// 
+	/// LA MEDIANE EST LE CENTRE DE REFERENCE, PAS LA MOYENNE.
+	/// Les durees d'execution SSIS sont fortement asymetriques : quelques
+	/// executions tres longues suffisent a deplacer une moyenne loin de ce
+	/// qui se passe ordinairement. La mediane decrit le cas courant ; les
+	/// percentiles hauts decrivent ce qui deborde. Les deux sont necessaires,
+	/// et la moyenne seule serait trompeuse dans les deux sens.
+	/// 
+	/// UNE DUREE ABSOLUE SERT A MESURER ET A PRIORISER (decision D015).
+	/// Elle ne suffit jamais, seule, a qualifier une anomalie : un package
+	/// qui met huit heures n'est pas anormal s'il met huit heures depuis
+	/// trois ans. C'est la comparaison a son propre passe qui qualifie.
+	/// 
+	measure 'Duree mediane (s)' =
+			VAR Mesurables =
+			    FILTER (
+			        Executions,
+			        NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    MEDIANX ( Mesurables, Executions[DureeSecondes] )
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000001
+
+	measure 'Duree P25 (s)' =
+			VAR Mesurables =
+			    FILTER (
+			        Executions,
+			        NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    PERCENTILEX.INC ( Mesurables, Executions[DureeSecondes], 0.25 )
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000002
+
+	measure 'Duree P75 (s)' =
+			VAR Mesurables =
+			    FILTER (
+			        Executions,
+			        NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    PERCENTILEX.INC ( Mesurables, Executions[DureeSecondes], 0.75 )
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000003
+
+	measure 'Duree P90 (s)' =
+			VAR Mesurables =
+			    FILTER (
+			        Executions,
+			        NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    PERCENTILEX.INC ( Mesurables, Executions[DureeSecondes], 0.90 )
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000004
+
+	/// P95 : ce que le package fait quand il va mal, hors cas extremes.
+	/// 
+	/// AVEC MOINS DE VINGT EXECUTIONS, UN P95 EST A PEU PRES LE MAXIMUM et il
+	/// n'apporte rien de plus que lui. Le lire comme un percentile donne alors
+	/// une fausse impression de mesure statistique. Voir 'Niveau de confiance'.
+	measure 'Duree P95 (s)' =
+			VAR Mesurables =
+			    FILTER (
+			        Executions,
+			        NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    PERCENTILEX.INC ( Mesurables, Executions[DureeSecondes], 0.95 )
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000005
+
+	measure 'Duree maximale (s)' =
+			CALCULATE (
+			    MAX ( Executions[DureeSecondes] ),
+			    KEEPFILTERS ( Executions[EnVolALExtraction] = FALSE () )
+			)
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000006
+
+	/// Ecart interquartile : la largeur de la zone ou tombent les cinquante
+	/// pour cent d'executions les plus ordinaires.
+	/// 
+	/// PREFERE A L'ECART-TYPE PARCE QU'IL RESISTE AUX VALEURS EXTREMES. Un
+	/// seul incident a huit heures fait exploser un ecart-type et laisse
+	/// l'interquartile intact - or c'est bien la dispersion ORDINAIRE qu'on
+	/// cherche a decrire ici, l'incident etant traite ailleurs.
+	measure 'Dispersion IQR (s)' = [Duree P75 (s)] - [Duree P25 (s)]
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000007
+
+	/// Rapport entre le haut de la distribution et son centre. Sans unite,
+	/// donc comparable entre un package de trois secondes et un package de
+	/// trois heures - ce qu'une dispersion absolue ne permet pas.
+	/// 
+	/// Proche de 1 : des durees regulieres. Au-dela de 3 : le package met
+	/// couramment plusieurs fois son temps median, ce qui vaut examen.
+	/// Le seuil est indicatif et n'est pas etalonne sur un parc reel.
+	measure 'Ratio P95 / P50' = DIVIDE ( [Duree P95 (s)], [Duree mediane (s)] )
+		formatString: #,0.0
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000008
+
+	/// Temps d'attente median entre la creation d'une execution et son
+	/// demarrage effectif.
+	/// 
+	/// C'EST DU TEMPS D'ORDONNANCEMENT, PAS DU TEMPS DE TRAITEMENT. Un delai
+	/// eleve dit quelque chose du plan de charge ou de la file d'attente, et
+	/// rien du package lui-meme. Le confondre avec une lenteur de package
+	/// enverrait l'investigation exactement au mauvais endroit.
+	measure 'Attente mediane (s)' =
+			VAR AvecDelai =
+			    FILTER ( Executions, NOT ISBLANK ( Executions[DelaiDemarrageSecondes] ) )
+			RETURN
+			    MEDIANX ( AvecDelai, Executions[DelaiDemarrageSecondes] )
+		formatString: #,0.##" s"
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000009
+
+	/// Duree mediane mise en forme pour un visuel de type carte.
+	/// PIEGE MESURE, ET IL VIENT DE LA CULTURE DU MODELE.
+	/// 
+	/// En fr-FR, le format "0.#" N'OMET PAS le separateur decimal quand il n'y
+	/// a pas de decimale : FORMAT(4, "0.#") rend "4," et non "4". Mesure faite
+	/// sur ce modele, la carte affichait "4, s".
+	/// 
+	/// Le format se choisit donc APRES avoir regarde s'il reste une decimale,
+	/// plutot que de compter sur le caractere # pour la supprimer.
+	measure 'Duree mediane (libelle)' =
+			VAR S = [Duree mediane (s)]
+			VAR Valeur =
+			    SWITCH ( TRUE (), S < 60, S, S < 3600, DIVIDE ( S, 60 ), DIVIDE ( S, 3600 ) )
+			VAR Unite =
+			    SWITCH ( TRUE (), S < 60, " s", S < 3600, " min", " h" )
+			VAR Arrondi = ROUND ( Valeur, 1 )
+			RETURN
+			    IF (
+			        ISBLANK ( S ),
+			        "Aucune duree mesurable",
+			        IF ( Arrondi = INT ( Arrondi ), FORMAT ( Arrondi, "0" ), FORMAT ( Arrondi, "0.0" ) )
+			            & Unite
+			    )
+		displayFolder: 2 - Durees
+		lineageTag: d2000000-0000-4000-8000-000000000010
+
+	/// 3. STABILITE ET DERIVE
+	/// 
+	/// Taille de l'echantillon, et ce qu'on s'autorise a en dire.
+	/// 
+	/// LES SEUILS CI-DESSOUS SONT CONVENTIONNELS ET NON ETALONNES. Ils sont
+	/// inscrits comme point ouvert du projet : la valeur de trente, heritee de
+	/// l'usage statistique courant, a ete contestee en relecture et n'a jamais
+	/// ete validee sur un parc reel. Elle est ici pour etre discutee, pas pour
+	/// faire autorite.
+	/// 
+	/// CE QU'ELLE QUALIFIE : la taille de l'echantillon, et rien d'autre. Une
+	/// confiance "elevee" ne dit pas qu'une conclusion est vraie ; elle dit
+	/// qu'on a assez d'executions pour que la mediane et les percentiles
+	/// veuillent dire quelque chose. L'inverse est plus utile encore : une
+	/// confiance "insuffisante" interdit de conclure, quelle que soit
+	/// l'ampleur apparente de l'ecart observe.
+	measure 'Niveau de confiance' =
+			VAR N = [Executions mesurables]
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( N ) || N = 0, "Aucune donnee",
+			        N < 10,  "Insuffisante",
+			        N < 30,  "Faible",
+			        N < 100, "Moyenne",
+			        "Elevee"
+			    )
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000001
+
+	/// Rang du niveau de confiance, pour trier et mettre en forme.
+	measure 'Rang de confiance' =
+			VAR N = [Executions mesurables]
+			RETURN
+			    SWITCH ( TRUE (), ISBLANK ( N ) || N = 0, 0, N < 10, 1, N < 30, 2, N < 100, 3, 4 )
+		formatString: 0
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000002
+
+	/// Duree mediane sur la moitie RECENTE de la periode affichee.
+	/// 
+	/// LA COUPURE SUIT LA SELECTION DE L'UTILISATEUR, elle n'est pas figee a
+	/// sept ou trente jours. Changer le filtre de periode change donc les deux
+	/// moities, et c'est voulu : la question "est-ce que cela derive" n'a de
+	/// sens que par rapport a une fenetre choisie.
+	measure 'Duree mediane recente (s)' =
+			VAR Debut  = MIN ( Executions[DateDebut] )
+			VAR Fin    = MAX ( Executions[DateDebut] )
+			VAR Milieu = Debut + INT ( DATEDIFF ( Debut, Fin, DAY ) / 2 )
+			VAR Recentes =
+			    FILTER (
+			        Executions,
+			        Executions[DateDebut] > Milieu
+			            && NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    MEDIANX ( Recentes, Executions[DureeSecondes] )
+		formatString: #,0.##" s"
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000003
+
+	measure 'Duree mediane ancienne (s)' =
+			VAR Debut  = MIN ( Executions[DateDebut] )
+			VAR Fin    = MAX ( Executions[DateDebut] )
+			VAR Milieu = Debut + INT ( DATEDIFF ( Debut, Fin, DAY ) / 2 )
+			VAR Anciennes =
+			    FILTER (
+			        Executions,
+			        Executions[DateDebut] <= Milieu
+			            && NOT Executions[EnVolALExtraction]
+			            && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			RETURN
+			    MEDIANX ( Anciennes, Executions[DureeSecondes] )
+		formatString: #,0.##" s"
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000004
+
+	/// Variation relative entre les deux moities de la periode.
+	/// 
+	/// CE N'EST PAS UNE DERIVE, C'EST UN ECART ENTRE DEUX MEDIANES.
+	/// Une variation peut venir d'un changement de volume traite, d'une
+	/// charge concurrente differente, d'un deploiement, d'une modification
+	/// d'infrastructure - ou du hasard, si l'effectif est petit. Le
+	/// catalogue ne permet de trancher aucune de ces hypotheses.
+	/// 
+	/// La mesure sert a ORDONNER les packages a examiner. Elle ne conclut
+	/// jamais seule, et elle rend BLANK des que l'effectif ne permet pas de
+	/// la lire - voir 'Variation lisible'.
+	measure 'Variation recente (%)' =
+			VAR Ancienne = [Duree mediane ancienne (s)]
+			VAR Recente  = [Duree mediane recente (s)]
+			RETURN
+			    IF (
+			        ISBLANK ( Ancienne ) || ISBLANK ( Recente ) || Ancienne = 0,
+			        BLANK (),
+			        DIVIDE ( Recente - Ancienne, Ancienne )
+			    )
+		formatString: +0.0%;-0.0%;0.0%
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000005
+
+	/// La variation est-elle lisible, compte tenu de l'effectif ?
+	/// 
+	/// Elle exige au moins cinq executions mesurables DE CHAQUE COTE de la
+	/// coupure. En dessous, comparer deux medianes revient a comparer deux
+	/// poignees de valeurs, et l'ecart obtenu est du bruit presente comme une
+	/// tendance. Le seuil est conventionnel, comme ceux de la confiance.
+	measure 'Variation lisible' =
+			VAR Debut  = MIN ( Executions[DateDebut] )
+			VAR Fin    = MAX ( Executions[DateDebut] )
+			VAR Milieu = Debut + INT ( DATEDIFF ( Debut, Fin, DAY ) / 2 )
+			VAR Base =
+			    FILTER (
+			        Executions,
+			        NOT Executions[EnVolALExtraction] && NOT ISBLANK ( Executions[DureeSecondes] )
+			    )
+			VAR NRecentes  = COUNTROWS ( FILTER ( Base, Executions[DateDebut] > Milieu ) )
+			VAR NAnciennes = COUNTROWS ( FILTER ( Base, Executions[DateDebut] <= Milieu ) )
+			RETURN
+			    COALESCE ( NRecentes, 0 ) >= 5 && COALESCE ( NAnciennes, 0 ) >= 5
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000006
+
+	/// Variation affichable : la valeur, ou le motif qui empeche de la lire.
+	/// C'est cette mesure qui va dans les visuels, jamais la variation brute.
+	measure 'Variation affichable' =
+			IF (
+			    NOT [Variation lisible],
+			    "Effectif insuffisant",
+			    FORMAT ( [Variation recente (%)], "+0.0%;-0.0%;0.0%" )
+			)
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000007
+
+	/// 4. CONCURRENCE
+	/// 
+	/// CE QUE CETTE SECTION MESURE : combien d'executions se CHEVAUCHENT dans le
+	/// temps. C'est un fait, lisible dans les heures de debut et de fin.
+	/// 
+	/// CE QU'ELLE NE MESURE PAS, ET QU'IL NE FAUT PAS LUI FAIRE DIRE :
+	/// une saturation. Le catalogue ne collecte aucun usage processeur,
+	/// memoire ou disque. Huit executions simultanees sur une machine a
+	/// trente-deux coeurs ne saturent rien ; deux peuvent suffire ailleurs.
+	/// La concurrence observee oriente l'investigation, elle ne la conclut pas.
+	/// La page porte cette phrase en clair, et elle doit y rester.
+	/// 
+	/// Nombre maximal d'executions se chevauchant sur la periode.
+	/// 
+	/// L'ALGORITHME N'EVALUE QUE LES INSTANTS DE DEMARRAGE, et c'est exact :
+	/// le nombre d'executions simultanees ne peut augmenter qu'au moment ou
+	/// l'une demarre. Le maximum est donc forcement atteint sur l'un de ces
+	/// instants, et balayer une grille de temps reguliere ne donnerait pas un
+	/// resultat plus juste - seulement plus lent, et faux s'il tombe entre
+	/// deux pics.
+	measure 'Executions simultanees max' =
+			VAR Fenetre =
+			    FILTER (
+			        ALLSELECTED ( Executions ),
+			        NOT ISBLANK ( Executions[HeureDebut] )
+			    )
+			VAR Instants = SELECTCOLUMNS ( Fenetre, "@Instant", Executions[HeureDebut] )
+			RETURN
+			    MAXX (
+			        Instants,
+			        VAR T = [@Instant]
+			        RETURN
+			            COUNTROWS (
+			                FILTER (
+			                    Fenetre,
+			                    Executions[HeureDebut] <= T
+			                        && COALESCE ( Executions[HeureFin], Executions[HeureFinEffective] ) > T
+			                )
+			            )
+			    )
+		formatString: #,0
+		displayFolder: 4 - Concurrence
+		lineageTag: d4000000-0000-4000-8000-000000000001
+
+	/// Nombre d'executions en cours a l'instant du point de grille courant.
+	/// A utiliser avec la table GrilleTemps en axe, jamais avec Calendrier.
+	measure 'Executions simultanees' =
+			VAR T = SELECTEDVALUE ( GrilleTemps[Instant] )
+			RETURN
+			    IF (
+			        ISBLANK ( T ),
+			        BLANK (),
+			        COUNTROWS (
+			            FILTER (
+			                Executions,
+			                Executions[HeureDebut] <= T
+			                    && COALESCE ( Executions[HeureFin], Executions[HeureFinEffective] ) > T
+			            )
+			        )
+			    )
+		formatString: #,0
+		displayFolder: 4 - Concurrence
+		lineageTag: d4000000-0000-4000-8000-000000000002
+
+	/// Concurrence maximale observee sur la maille courante de la grille.
+	/// C'est la mesure de la carte de chaleur jour x heure.
+	measure 'Concurrence maximale' = MAXX ( VALUES ( GrilleTemps[Instant] ), [Executions simultanees] )
+		formatString: #,0
+		displayFolder: 4 - Concurrence
+		lineageTag: d4000000-0000-4000-8000-000000000003
+
+	/// Premiere et derniere heure d'activite observees, en heure locale.
+	measure 'Plage horaire observee' =
+			VAR Debut = MIN ( Executions[HeureDebut] )
+			VAR Fin   = MAXX ( Executions, COALESCE ( Executions[HeureFin], Executions[HeureFinEffective] ) )
+			RETURN
+			    IF (
+			        ISBLANK ( Debut ),
+			        "Aucune execution",
+			        FORMAT ( Debut, "HH:mm" ) & " - " & FORMAT ( Fin, "HH:mm" )
+			    )
+		displayFolder: 4 - Concurrence
+		lineageTag: d4000000-0000-4000-8000-000000000004
+
+	/// 5. INCIDENTS ET STATUTS
+	/// 
+	/// LES NEUF STATUTS DU CATALOGUE RESTENT DISTINCTS (decision D016). Les
+	/// mesures ci-dessous nomment explicitement les codes qu'elles retiennent,
+	/// pour qu'on puisse verifier d'un coup d'oeil ce qu'elles comptent.
+	/// 
+	/// Statut 7 : Reussie.
+	measure 'Executions reussies' = CALCULATE ( COUNTROWS ( Executions ), KEEPFILTERS ( Executions[StatutCode] = 7 ) )
+		formatString: #,0
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000001
+
+	/// Statut 4 : Echec.
+	measure 'Executions en echec' = CALCULATE ( COUNTROWS ( Executions ), KEEPFILTERS ( Executions[StatutCode] = 4 ) )
+		formatString: #,0
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000002
+
+	/// Statuts 3 Annulee, 6 Interrompue, 8 EnArret.
+	/// 
+	/// ELLES SONT COMPTEES A PART, ET C'EST TOUT L'INTERET. Rangees avec les
+	/// echecs, elles disparaissent ; rangees avec les reussites, elles
+	/// mentent. Une interruption dit generalement quelque chose de
+	/// l'exploitation - un redemarrage de service, un arret manuel - et pas du
+	/// package.
+	measure 'Executions interrompues' = CALCULATE ( COUNTROWS ( Executions ), KEEPFILTERS ( Executions[StatutCode] IN { 3, 6, 8 } ) )
+		formatString: #,0
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000003
+
+	/// Part de reussites parmi les executions TERMINEES seulement.
+	/// 
+	/// Les executions encore en cours sont exclues du denominateur : les
+	/// compter comme des non-reussites ferait baisser le taux a chaque
+	/// extraction prise pendant une fenetre de traitement.
+	measure 'Taux de reussite' =
+			VAR Terminees =
+			    CALCULATE ( COUNTROWS ( Executions ), KEEPFILTERS ( Executions[EstTerminee] = TRUE () ) )
+			RETURN
+			    DIVIDE ( [Executions reussies], Terminees )
+		formatString: 0.0%
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000004
+
+	measure 'Messages erreur' = CALCULATE ( COUNTROWS ( Messages ), KEEPFILTERS ( Messages[TypeCode] = 120 ) )
+		formatString: #,0
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000005
+
+	measure 'Messages avertissement' = CALCULATE ( COUNTROWS ( Messages ), KEEPFILTERS ( Messages[TypeCode] = 110 ) )
+		formatString: #,0
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000006
+
+	/// Executions ayant produit au moins une erreur ou un avertissement.
+	/// 
+	/// A PREFERER AU NOMBRE DE MESSAGES pour mesurer l'ampleur d'un probleme :
+	/// une seule execution peut emettre des centaines de messages en cascade
+	/// a partir d'une unique cause, et le compte de messages donnerait alors
+	/// une impression d'incident massif la ou il y a un incident.
+	measure 'Executions avec incident' = DISTINCTCOUNT ( Messages[ExecutionId] )
+		formatString: #,0
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000007
+
+	/// 6. COUVERTURE ET CAPACITES
+	/// 
+	/// LA COUVERTURE SE MESURE EN PART D'EXECUTIONS DONT LE LOGGING PERMET
+	/// L'ANALYSE, et non en nombre de lignes extraites.
+	/// 
+	/// Le nombre de lignes ne dit rien : zero ligne de phases de composants
+	/// peut signifier "aucun flux de donnees dans ce parc" comme "le
+	/// catalogue tourne en Basic". La part d'executions eligibles, elle,
+	/// tranche entre les deux.
+	/// 
+	/// LE NIVEAU DE LOGGING EST UN PLANCHER, JAMAIS UNE EGALITE : une execution
+	/// en Verbose produit tout ce que Performance produit. Les comparaisons se
+	/// font donc avec >=, et s'en tenir a l'egalite sous-estimerait la
+	/// couverture - le defaut a ete commis, puis mesure.
+	/// 
+	measure 'Couverture Basic (%)' =
+			DIVIDE (
+			    CALCULATE ( COUNTROWS ( Executions ), KEEPFILTERS ( Executions[RangLogging] >= 1 ) ),
+			    COUNTROWS ( Executions )
+			)
+		formatString: 0%
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000001
+
+	measure 'Couverture Performance (%)' =
+			DIVIDE (
+			    CALCULATE ( COUNTROWS ( Executions ), KEEPFILTERS ( Executions[RangLogging] >= 2 ) ),
+			    COUNTROWS ( Executions )
+			)
+		formatString: 0%
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000002
+
+	measure 'Couverture Verbose (%)' =
+			DIVIDE (
+			    CALCULATE ( COUNTROWS ( Executions ), KEEPFILTERS ( Executions[RangLogging] >= 3 ) ),
+			    COUNTROWS ( Executions )
+			)
+		formatString: 0%
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000003
+
+	/// Part des executions dont le detail par tache a ete extrait. Un ecart
+	/// avec la couverture Basic signale une extraction partielle, pas un parc
+	/// different.
+	measure 'Executions detaillees (%)' = DIVIDE ( DISTINCTCOUNT ( Executables[ExecutionId] ), COUNTROWS ( Executions ) )
+		formatString: 0%
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000004
+
+	/// Etat d'une extraction, lu dans Extractions.csv.
+	/// Usage : [Etat extraction]("phases") n'existe pas en DAX, d'ou les
+	/// mesures nommees ci-dessous, une par zone conditionnelle du rapport.
+	measure 'Motif phases de composants' =
+			VAR Ligne = FILTER ( ALL ( Extractions ), Extractions[Cle] = "phases" )
+			VAR Statut = MAXX ( Ligne, Extractions[Statut] )
+			VAR Motif  = MAXX ( Ligne, Extractions[Message] )
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( Statut ),                "Extraction absente de cette collecte.",
+			        Statut = "ReussieAvecDonnees",     BLANK (),
+			        Statut = "ReussieVide",            "Extraction reussie, aucune phase enregistree sur cette fenetre.",
+			        "Donnee non disponible - " & Motif
+			    )
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000005
+
+	measure 'Motif statistiques de flux' =
+			VAR Ligne = FILTER ( ALL ( Extractions ), Extractions[Cle] = "flux" )
+			VAR Statut = MAXX ( Ligne, Extractions[Statut] )
+			VAR Motif  = MAXX ( Ligne, Extractions[Message] )
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( Statut ),                "Extraction absente de cette collecte.",
+			        Statut = "ReussieAvecDonnees",     BLANK (),
+			        Statut = "ReussieVide",            "Extraction reussie, aucun chemin de flux mesure sur cette fenetre.",
+			        "Donnee non disponible - " & Motif
+			    )
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000006
+
+	measure 'Motif messages' =
+			VAR Ligne = FILTER ( ALL ( Extractions ), Extractions[Cle] = "messages" )
+			VAR Statut = MAXX ( Ligne, Extractions[Statut] )
+			VAR Motif  = MAXX ( Ligne, Extractions[Message] )
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( Statut ),            "Extraction absente de cette collecte.",
+			        Statut = "ReussieAvecDonnees", BLANK (),
+			        Statut = "ReussieVide",        "Extraction reussie, aucune erreur ni avertissement sur cette fenetre.",
+			        "Donnee non disponible - " & Motif
+			    )
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000007
+
+	/// Nombre d'extractions du plan qui n'ont pas produit de donnees.
+	/// A afficher sur la page Qualite : c'est le resume d'une collecte
+	/// partielle, et il ne doit jamais rester invisible.
+	/// ZERO EST LA BONNE REPONSE ICI, ET IL FAUT L'ECRIRE.
+	/// 
+	/// La regle generale du modele veut qu'une mesure rende BLANK plutot qu'un
+	/// zero trompeur. Ce compte est l'exception qui la confirme : "aucune
+	/// extraction sans donnees" est un CONSTAT, et le plus rassurant de la page
+	/// Qualite. Laisse a BLANK, il n'affiche rien - et une carte vide se lit
+	/// comme une mesure qui n'a pas su repondre.
+	measure 'Extractions sans donnees' =
+			COALESCE (
+			    CALCULATE (
+			        COUNTROWS ( Extractions ),
+			        KEEPFILTERS ( Extractions[Categorie] <> "Produite" )
+			    ),
+			    0
+			)
+		formatString: #,0
+		displayFolder: 6 - Couverture
+		lineageTag: d6000000-0000-4000-8000-000000000008
+
+	/// 7. CONTEXTE ET BANDEAUX
+	/// 
+	/// CES MESURES EXISTENT POUR QU'AUCUNE PAGE NE PUISSE ETRE LUE HORS DE SON
+	/// CONTEXTE. Un graphique de durees sans sa fenetre, son serveur et son
+	/// instant d'extraction n'est pas interpretable, et il survit pourtant tres
+	/// bien a une capture d'ecran collee dans un compte rendu.
+	/// 
+	measure 'Bandeau couverture' =
+			VAR NbExec     = [Executions observees]
+			VAR NbPackages = [Packages actifs]
+			VAR NbVersions = [Versions observees]
+			RETURN
+			    IF (
+			        ISBLANK ( NbExec ),
+			        "Aucune execution dans cette selection",
+			        "Couverture : " & FORMAT ( NbExec, "#,0" ) & " executions"
+			            & "  -  " & FORMAT ( NbPackages, "#,0" ) & " packages"
+			            & "  -  " & FORMAT ( NbVersions, "#,0" ) & " versions"
+			    )
+		displayFolder: 7 - Contexte
+		lineageTag: d7000000-0000-4000-8000-000000000001
+
+	measure 'Bandeau collecte' =
+			VAR Instant = SELECTEDVALUE ( Collecte[ExtractionTimestampUtc] )
+			VAR Serveur = SELECTEDVALUE ( Collecte[Serveur] )
+			VAR Nom     = SELECTEDVALUE ( Collecte[NomCollecte] )
+			RETURN
+			    IF (
+			        ISBLANK ( Instant ),
+			        "Collecte inconnue",
+			        Serveur & "  -  extrait le " & FORMAT ( Instant, "dd/MM/yyyy HH:mm" ) & " UTC  -  " & Nom
+			    )
+		displayFolder: 7 - Contexte
+		lineageTag: d7000000-0000-4000-8000-000000000002
+
+	/// Fenetre reellement extraite. Elle differe de la periode SELECTIONNEE
+	/// dans le rapport, et la difference compte : filtrer sur six mois quand
+	/// la collecte en porte trente jours n'ajoute rien, et laisse croire le
+	/// contraire.
+	measure 'Bandeau fenetre' =
+			VAR Jours  = SELECTEDVALUE ( Collecte[FenetreJours] )
+			VAR Depuis = SELECTEDVALUE ( Collecte[FenetreDebut] )
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        NOT ISBLANK ( Jours ),  "Fenetre extraite : " & Jours & " jours, depuis le " & FORMAT ( Depuis, "dd/MM/yyyy HH:mm" ) & " UTC",
+			        NOT ISBLANK ( Depuis ), "Fenetre extraite : depuis le " & FORMAT ( Depuis, "dd/MM/yyyy HH:mm" ) & " UTC",
+			        "Fenetre extraite : toute la retention du catalogue"
+			    )
+		displayFolder: 7 - Contexte
+		lineageTag: d7000000-0000-4000-8000-000000000003
+
+	/// Avertissement sur les droits du compte de collecte. Vide si le compte
+	/// etait restreint, ce qui est le cas nominal.
+	measure 'Avertissement droits' =
+			IF (
+			    SELECTEDVALUE ( Collecte[CompteAuxDroitsLarges] ),
+			    "Collecte realisee avec un compte disposant de droits d'ecriture sur le catalogue. "
+			        & "La lecture seule reposait sur la discipline, non sur les permissions.",
+			    BLANK ()
+			)
+		displayFolder: 7 - Contexte
+		lineageTag: d7000000-0000-4000-8000-000000000004
+
+	/// Niveaux de logging observes DANS LA FENETRE extraite.
+	measure 'Niveaux de logging observes' =
+			VAR Niveaux = SELECTEDVALUE ( Collecte[NiveauxLoggingObserves] )
+			RETURN
+			    IF ( ISBLANK ( Niveaux ) || Niveaux = "", "Aucun niveau observe", Niveaux )
+		displayFolder: 7 - Contexte
+		lineageTag: d7000000-0000-4000-8000-000000000005
+
+	/// Classe dynamiquement chaque package selon sa duree mediane par rapport
+	/// aux autres packages visibles dans les filtres courants.
+	/// 0 = Stable, 1 = A surveiller, 2 = Instable.
+	measure 'Priorite duree relative' =
+			VAR DureePackage = [Duree mediane (s)]
+			VAR PackagesVisibles =
+			    FILTER (
+			        ALLSELECTED ( Packages[PackageCle] ),
+			        NOT ISBLANK ( CALCULATE ( [Duree mediane (s)] ) )
+			    )
+			VAR SeuilSurveillance =
+			    PERCENTILEX.INC ( PackagesVisibles, CALCULATE ( [Duree mediane (s)] ), 0.50 )
+			VAR SeuilInstable =
+			    PERCENTILEX.INC ( PackagesVisibles, CALCULATE ( [Duree mediane (s)] ), 0.80 )
+			RETURN
+			    IF (
+			        ISBLANK ( DureePackage ),
+			        BLANK (),
+			        SWITCH (
+			            TRUE (),
+			            DureePackage >= SeuilInstable, 2,
+			            DureePackage >= SeuilSurveillance, 1,
+			            0
+			        )
+			    )
+		formatString: 0
+		displayFolder: 3 - Stabilite
+		lineageTag: d3000000-0000-4000-8000-000000000008
+
+	/// Lecture textuelle du delai pour eviter un graphique vide lorsque toutes
+	/// les executions demarrent immediatement.
+	measure 'Lecture delai demarrage' =
+			VAR Delai = [Attente mediane (s)]
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( Delai ), "Délai indisponible",
+			        Delai = 0, "Aucun délai observé",
+			        "Délai médian : " & FORMAT ( Delai, "0.##" ) & " s"
+			    )
+		displayFolder: 4 - Concurrence
+		lineageTag: d4000000-0000-4000-8000-000000000005
+
+	/// Couleur semantique utilisee par les visuels de signalement.
+	/// La logique repose sur TypeCode, plus stable que le libelle traduit.
+	measure 'Couleur type signalement' =
+			SWITCH (
+			    SELECTEDVALUE ( Messages[TypeCode] ),
+			    120, "#E8635A",
+			    110, "#F2C94C",
+			    "#4C8BF5"
+			)
+		displayFolder: 5 - Incidents
+		lineageTag: d5000000-0000-4000-8000-000000000008
+
+	/// Valeurs de contexte destinees a la page de detail. Elles n'ajoutent
+	/// aucune regle analytique : elles rendent seulement la selection lisible.
+	measure 'Package selectionne' = SELECTEDVALUE ( Packages[Package], "Selectionner un package" )
+		displayFolder: 8 - Detail package
+		lineageTag: d8000000-0000-4000-8000-000000000001
+
+	measure 'Projet selectionne' = SELECTEDVALUE ( Packages[Projet], "Plusieurs projets" )
+		displayFolder: 8 - Detail package
+		lineageTag: d8000000-0000-4000-8000-000000000002
+
+	measure 'Version selectionnee' = SELECTEDVALUE ( Packages[VersionPackage], "Plusieurs versions" )
+		displayFolder: 8 - Detail package
+		lineageTag: d8000000-0000-4000-8000-000000000003
+
+	/// Mediane des observations d'un executable dans le contexte courant.
+	/// Une somme melangerait les executions et produirait une duree fictive.
+	measure 'Duree executable mediane (s)' = DIVIDE ( MEDIAN ( Executables[DureeMillisecondes] ), 1000 )
+		formatString: #,0.##" s"
+		displayFolder: 8 - Detail package
+		lineageTag: d8000000-0000-4000-8000-000000000004
+
+	measure 'Motif iterations de boucle' =
+			VAR NbIterations =
+			    CALCULATE (
+			        COUNTROWS ( Executables ),
+			        KEEPFILTERS ( Executables[NiveauxIteration] > 0 )
+			    )
+			RETURN
+			    IF ( NbIterations = 0, "Aucune iteration de boucle observee dans cette selection", BLANK () )
+		displayFolder: 8 - Detail package
+		lineageTag: d8000000-0000-4000-8000-000000000005
+
+	measure 'Seuil Gantt selectionne (min)' = SELECTEDVALUE ( SeuilGantt[Minutes], 5 )
+		formatString: 0 "min"
+		displayFolder: 9 - Gantt
+		lineageTag: d9000000-0000-4000-8000-000000000001
+
+	measure 'Duree Gantt visible (s)' =
+			VAR UneJournee = HASONEVALUE ( Calendrier[Date] )
+			VAR Duree = MAX ( Executions[DureeEffectiveSecondes] )
+			VAR SeuilSecondes = [Seuil Gantt selectionne (min)] * 60
+			RETURN IF ( UneJournee && Duree >= SeuilSecondes, Duree )
+		formatString: #,0.## "s"
+		displayFolder: 9 - Gantt
+		lineageTag: d9000000-0000-4000-8000-000000000002
+
+	measure 'Duree Gantt preview (s)' =
+			VAR Duree = MAX ( Executions[DureeEffectiveSecondes] )
+			RETURN IF ( HASONEVALUE ( Calendrier[Date] ) && Duree >= 300, Duree )
+		formatString: #,0.## "s"
+		displayFolder: 9 - Gantt
+		lineageTag: d9000000-0000-4000-8000-000000000003
+
+	measure 'Executions Gantt affichees' =
+			VAR SeuilSecondes = [Seuil Gantt selectionne (min)] * 60
+			RETURN
+				IF (
+					HASONEVALUE ( Calendrier[Date] ),
+					COUNTROWS (
+						FILTER (
+							VALUES ( Executions[ExecutionId] ),
+							CALCULATE ( MAX ( Executions[DureeEffectiveSecondes] ) ) >= SeuilSecondes
+						)
+					)
+				)
+		formatString: #,0
+		displayFolder: 9 - Gantt
+		lineageTag: d9000000-0000-4000-8000-000000000004
+
+	measure 'Duree maximale Gantt (min)' =
+			VAR SeuilSecondes = [Seuil Gantt selectionne (min)] * 60
+			VAR DureeMax =
+				MAXX (
+					FILTER ( Executions, Executions[DureeEffectiveSecondes] >= SeuilSecondes ),
+					Executions[DureeEffectiveSecondes]
+				)
+			RETURN IF ( HASONEVALUE ( Calendrier[Date] ), DIVIDE ( DureeMax, 60 ) )
+		formatString: #,0.## "min"
+		displayFolder: 9 - Gantt
+		lineageTag: d9000000-0000-4000-8000-000000000005
+
+	measure 'Etat Gantt' =
+			SWITCH (
+				TRUE (),
+				NOT HASONEVALUE ( Calendrier[Date] ), "Sélectionnez un jour",
+				[Executions Gantt affichees] = 0, "Aucune exécution ne dépasse le seuil sélectionné",
+				BLANK ()
+			)
+		displayFolder: 9 - Gantt
+		lineageTag: d9000000-0000-4000-8000-000000000006
+
+	measure 'Etat Gantt preview' =
+			VAR NbExecutionsLongues =
+				COUNTROWS (
+					FILTER (
+						VALUES ( Executions[ExecutionId] ),
+						CALCULATE ( MAX ( Executions[DureeEffectiveSecondes] ) ) >= 300
+					)
+				)
+			RETURN
+				SWITCH (
+					TRUE (),
+					NOT HASONEVALUE ( Calendrier[Date] ), "Sélectionnez un jour",
+					NbExecutionsLongues = 0, "Aucune exécution de 5 minutes ou plus",
+					BLANK ()
+				)
+		displayFolder: 9 - Gantt
+		lineageTag: d9000000-0000-4000-8000-000000000007
+
+	column Espace
+		dataType: string
+		isHidden
+		lineageTag: d0000000-0000-4000-8000-000000000000
+		summarizeBy: none
+		sourceColumn: [Espace]
+
+	partition Mesures = calculated
+		mode: import
+		source = ROW ( "Espace", BLANK () )
+
