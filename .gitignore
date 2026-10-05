@@ -1,15 +1,6 @@
-# Etat local de Power BI Desktop, jamais versionne
-#
-#   .pbi/cache.abf            le cache de donnees du modele : il porte une
-#                             copie des donnees chargees.
-#   .pbi/localSettings.json   une signature chiffree, liee a la machine et au
-#                             compte Windows qui l'a produite.
+# Donnees et caches locaux, jamais versionnes
 **/.pbi/
-
-# Collectes : elles contiennent les faits d'execution extraits du catalogue
 Run_*/
 output/
 *.csv
-
-# Fichiers Power BI compiles
 *.pbix
