@@ -2,14 +2,21 @@
 
 ## Interface integree : collecte et rapports PDF
 
-[Telecharger l'application portable v0.1.3](https://github.com/Jowker-Hub/ssis-runtime-audit/raw/refs/heads/main/Interface-integree/v0.1.3/SSIS-Runtime-Audit-v0.1.3.zip)
+[Telecharger l'application portable v0.1.4](https://github.com/Jowker-Hub/ssis-runtime-audit/raw/refs/heads/main/Interface-integree/v0.1.4/SSIS-Runtime-Audit-v0.1.4.zip)
 
 Cette application regroupe la collecte SSISDB et la generation des rapports PDF
-Erreurs et Performances. Elle integre le logo documentaire dbi HD et une typographie
-Calibri uniforme. Decompresser toute l'archive puis lancer `SSIS-Runtime-Audit.exe`.
+Erreurs et Performances. La version 0.1.4 livre le rapport **Performances** revu
+page par page : synthese, durees, variations intrajournalieres, top 5 des taches
+et concurrence groupee par date. Elle integre le logo documentaire dbi HD et une
+typographie Calibri uniforme. Decompresser toute l'archive puis lancer
+`SSIS-Runtime-Audit.exe`.
 
-- [Instructions et prerequis](Interface-integree/v0.1.3/LISEZ-MOI.md)
-- [Empreinte SHA-256](Interface-integree/v0.1.3/SHA256SUMS.txt)
+**La validation de cette livraison concerne uniquement Performances. Le rapport
+Erreurs reste celui de 0.1.3, sans modification ; sa revue est en attente et il
+ne doit pas etre considere comme un livrable valide pour le moment.**
+
+- [Instructions et prerequis](Interface-integree/v0.1.4/LISEZ-MOI.md)
+- [Empreinte SHA-256](Interface-integree/v0.1.4/SHA256SUMS.txt)
 - Windows 11 / Windows Server 2019 ou ulterieur, x64 ; runtime .NET embarque.
 - Prototype non signe, en attente du certificat et des validations d'entreprise.
 - Aucune donnee client ni aucun rapport QA inclus.
@@ -17,6 +24,9 @@ Calibri uniforme. Decompresser toute l'archive puis lancer `SSIS-Runtime-Audit.e
 Le depot est public : le telechargement ne necessite pas de compte GitHub.
 Les donnees collectees et les rapports produits ensuite peuvent etre confidentiels :
 ne jamais les ajouter a ce depot.
+
+Les versions integrees precedentes restent disponibles dans leurs dossiers
+`Interface-integree/v0.1.3` et `Interface-integree/v0.1.2`.
 
 ## Collecte et analyse Power BI : archives distinctes v0.1.9
 
