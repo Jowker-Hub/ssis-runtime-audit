@@ -2,18 +2,20 @@
 
 ## Interface integree : collecte et rapports PDF
 
-[Telecharger l'application portable v0.1.5](https://github.com/Jowker-Hub/ssis-runtime-audit/raw/refs/heads/main/Interface-integree/v0.1.5/SSIS-Runtime-Audit-v0.1.5.zip)
+[Telecharger l'application portable v0.1.6](https://github.com/Jowker-Hub/ssis-runtime-audit/raw/refs/heads/main/Interface-integree/v0.1.6/SSIS-Runtime-Audit-v0.1.6.zip)
 
 Cette application regroupe la collecte SSISDB et la generation des rapports PDF
-Erreurs et Performances. La version 0.1.5 reprend le rapport **Performances** revu
+Erreurs et Performances. La version 0.1.6 reprend le rapport **Performances** revu
 page par page : synthese, durees, variations intrajournalieres, top 5 des taches
 et concurrence groupee par date. Elle integre le logo documentaire dbi HD et une
 typographie Calibri uniforme. Decompresser toute l'archive puis lancer
 `SSIS-Runtime-Audit.exe`.
 
-Cette version ajoute un diagnostic de l'authentification Windows : le bandeau
+Cette version complete le diagnostic de l'authentification Windows : le bandeau
 affiche le compte qui execute l'interface et un echec de connexion indique le
-compte du processus PowerShell ainsi que les codes SQL disponibles. Elle sert a
+compte du processus PowerShell ainsi que les codes SQL disponibles. Un journal
+local borne conserve aussi le code de sortie et la sortie d'erreur PowerShell,
+avec masquage des mots de passe, et son chemin apparait dans l'interface. Elle sert a
 identifier precisement les problemes observes avec « Executer en tant qu'autre
 utilisateur »; elle ne modifie aucun droit SQL.
 
@@ -21,8 +23,8 @@ utilisateur »; elle ne modifie aucun droit SQL.
 Erreurs reste celui de 0.1.3, sans modification ; sa revue est en attente et il
 ne doit pas etre considere comme un livrable valide pour le moment.**
 
-- [Instructions et prerequis](Interface-integree/v0.1.5/LISEZ-MOI.md)
-- [Empreinte SHA-256](Interface-integree/v0.1.5/SHA256SUMS.txt)
+- [Instructions et prerequis](Interface-integree/v0.1.6/LISEZ-MOI.md)
+- [Empreinte SHA-256](Interface-integree/v0.1.6/SHA256SUMS.txt)
 - Windows 11 / Windows Server 2019 ou ulterieur, x64 ; runtime .NET embarque.
 - Prototype non signe, en attente du certificat et des validations d'entreprise.
 - Aucune donnee client ni aucun rapport QA inclus.
@@ -32,7 +34,7 @@ Les donnees collectees et les rapports produits ensuite peuvent etre confidentie
 ne jamais les ajouter a ce depot.
 
 Les versions integrees precedentes restent disponibles dans leurs dossiers
-`Interface-integree/v0.1.4`, `Interface-integree/v0.1.3` et
+`Interface-integree/v0.1.5`, `Interface-integree/v0.1.4`, `Interface-integree/v0.1.3` et
 `Interface-integree/v0.1.2`.
 
 ## Collecte et analyse Power BI : archives distinctes v0.1.9
