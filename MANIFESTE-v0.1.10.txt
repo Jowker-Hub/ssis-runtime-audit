@@ -1,0 +1,1 @@
+SSIS Runtime Audit 0.1.10\r\nSecurityMode: Prototype\r\nWindows 11 / Server 2019+\r\n

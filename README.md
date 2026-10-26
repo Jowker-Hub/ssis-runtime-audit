@@ -44,15 +44,16 @@ distincte de celle de l'interface integree ci-dessus ; elles ne sont pas remplac
 
 Le livrable est distribué en deux archives indépendantes :
 
-| Archive | Machine cible | Point d'entrée |
+| Archive | Usage | Point d'entrée |
 |---|---|---|
-| **Collecte** | machine ayant accès à SSISDB | `Lancer-l-audit.cmd` |
-| **Analyse** | poste ou VM équipé de Power BI Desktop | `Ouvrir-l-analyse.cmd` |
+| **SSIS Runtime Audit** | collecte SSISDB et génération des rapports PDF | `SSIS-Runtime-Audit.exe` |
+| **Analyse** | exploration complémentaire dans Power BI Desktop | `Ouvrir-l-analyse.cmd` |
 
-Le collecteur produit un dossier `Run_...`. Ce dossier entier est la frontière entre les deux
-outils : copiez-le dans `Donnees\` du livrable d'analyse, puis ouvrez le rapport.
+L'application intégrée permet de choisir le dossier de collecte, de suivre l'avancement des
+extractions et de générer les rapports PDF Performance et Erreurs. Les données restent traitées
+localement et la connexion SQL est strictement en lecture seule.
 
-Les deux archives sont portables. Elles ne nécessitent ni Git, ni installation, ni droits
-administrateur locaux. La collecte SQL reste strictement en lecture seule.
+Le package est publié en mode **Prototype non signé** dans l'attente du certificat de signature
+dbi services. Il cible Windows 11 et Windows Server 2019 ou plus récent.
 
-Les guides détaillés vivent dans le dossier `Application\Documentation` de chaque archive.
+L'archive d'analyse Power BI reste facultative et indépendante de l'application intégrée.
